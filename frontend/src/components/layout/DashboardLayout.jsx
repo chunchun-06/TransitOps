@@ -8,7 +8,7 @@ const DashboardLayout = () => {
             style={{
                 display: "flex",
                 height: "100vh",
-                background: "#0a0a0a",
+                background: "#0E0F13",
                 overflow: "hidden",
             }}
         >

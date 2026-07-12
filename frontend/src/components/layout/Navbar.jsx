@@ -88,8 +88,8 @@ const Navbar = () => {
         <header
             style={{
                 height: "64px",
-                background: "#111111",
-                borderBottom: "1px solid rgba(255,255,255,0.06)",
+                background: "#15181D",
+                borderBottom: "1px solid #2B3038",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
@@ -127,7 +127,7 @@ const Navbar = () => {
                     <input
                         type="text"
                         placeholder="Search..."
-                        className="w-64 bg-white/[0.03] border border-white/[0.08] text-sm text-white rounded-full pl-10 pr-4 py-2 focus:outline-none focus:border-[#C98A1C] focus:bg-white/[0.05] transition-all"
+                        className="w-64 bg-[#1B1F24] border border-[#2B3038] text-sm text-white rounded-full pl-10 pr-4 py-2 focus:outline-none focus:border-[#C98A1C] transition-all"
                     />
                 </div>
 
@@ -138,8 +138,8 @@ const Navbar = () => {
                         width: "38px",
                         height: "38px",
                         borderRadius: "10px",
-                        background: "rgba(255,255,255,0.04)",
-                        border: "1px solid rgba(255,255,255,0.08)",
+                        background: "#1B1F24",
+                        border: "1px solid #2B3038",
                         color: "#6b7280",
                         display: "flex",
                         alignItems: "center",
@@ -154,9 +154,9 @@ const Navbar = () => {
                         e.currentTarget.style.borderColor = "rgba(201,138,28,0.25)";
                     }}
                     onMouseLeave={(e) => {
-                        e.currentTarget.style.background = "rgba(255,255,255,0.04)";
+                        e.currentTarget.style.background = "#1B1F24";
                         e.currentTarget.style.color = "#6b7280";
-                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
+                        e.currentTarget.style.borderColor = "#2B3038";
                     }}
                 >
                     <HiOutlineBell className="w-5 h-5" />
@@ -180,7 +180,7 @@ const Navbar = () => {
                     style={{
                         width: "1px",
                         height: "24px",
-                        background: "rgba(255,255,255,0.08)",
+                        background: "#2B3038",
                     }}
                 />
 
@@ -252,7 +252,7 @@ const Navbar = () => {
                             <div
                                 style={{
                                     padding: "14px 16px",
-                                    borderBottom: "1px solid rgba(255,255,255,0.07)",
+                                    borderBottom: "1px solid #2B3038",
                                 }}
                             >
                                 <div className="flex items-center gap-3">
@@ -406,7 +406,7 @@ const Navbar = () => {
                             <div
                                 style={{
                                     padding: "6px",
-                                    borderTop: "1px solid rgba(255,255,255,0.07)",
+                                    borderTop: "1px solid #2B3038",
                                 }}
                             >
                                 <button
