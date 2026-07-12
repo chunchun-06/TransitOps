@@ -1,46 +1,78 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useState, useCallback } from "react";
 
-const AuthContext = createContext();
+const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
 
-    const [user, setUser] = useState(
-        JSON.parse(localStorage.getItem("user"))
-    );
+    const [user, setUser] = useState(() => {
+        try {
+            const stored = localStorage.getItem("user") || sessionStorage.getItem("user");
+            return stored ? JSON.parse(stored) : null;
+        } catch {
+            return null;
+        }
+    });
 
-    const signin = (token, userData) => {
+    const [token, setToken] = useState(() => {
+        return localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken") || null;
+    });
 
-        localStorage.setItem(
-            "accessToken",
-            token
-        );
+    /**
+     * Persist token + user after a successful login.
+     * @param {string} accessToken
+     * @param {object} userData
+     */
+    const signin = useCallback((accessToken, userData, remember = true) => {
+        
+        const storage = remember ? localStorage : sessionStorage;
+        storage.setItem("accessToken", accessToken);
+        storage.setItem("user", JSON.stringify(userData));
 
-        localStorage.setItem(
-            "user",
-            JSON.stringify(userData)
-        );
-
+        setToken(accessToken);
         setUser(userData);
 
-    };
+    }, []);
 
-    const signout = () => {
+    /**
+     * Clear all session data and redirect to login.
+     */
+    const signout = useCallback(() => {
 
         localStorage.removeItem("accessToken");
         localStorage.removeItem("user");
+        sessionStorage.removeItem("accessToken");
+        sessionStorage.removeItem("user");
 
+        setToken(null);
         setUser(null);
 
+    }, []);
+
+    /**
+     * Returns true if the user is currently authenticated.
+     */
+    const isAuthenticated = useCallback(() => {
+        return !!user && !!token;
+    }, [user, token]);
+
+    /**
+     * Returns the current logged-in user object.
+     */
+    const currentUser = useCallback(() => {
+        return user;
+    }, [user]);
+
+    const value = {
+        user,
+        token,
+        signin,
+        signout,
+        isAuthenticated,
+        currentUser,
     };
 
     return (
-        <AuthContext.Provider
-            value={{
-                user,
-                signin,
-                signout,
-            }}
-        >
+        <AuthContext.Provider value={value}>
             {children}
         </AuthContext.Provider>
     );
@@ -48,5 +80,11 @@ export const AuthProvider = ({ children }) => {
 };
 
 export const useAuth = () => {
-    return useContext(AuthContext);
+    const context = useContext(AuthContext);
+    if (!context) {
+        throw new Error("useAuth must be used within an AuthProvider");
+    }
+    return context;
 };
+
+export default AuthContext;
