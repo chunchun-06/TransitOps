@@ -200,7 +200,7 @@ const Sidebar = () => {
                         gap: "2px",
                     }}
                 >
-                    <p className="text-xs text-gray-500 font-medium">Signed in as</p>
+                    <p className="text-xs text-muted font-medium">Signed in as</p>
                     <p
                         className="text-xs font-semibold truncate"
                         style={{ color: "#C98A1C" }}

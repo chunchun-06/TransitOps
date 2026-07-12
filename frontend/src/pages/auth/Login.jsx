@@ -136,7 +136,7 @@ const Login = () => {
                         TransitOps
                     </h1>
 
-                    <p className="text-gray-500 text-base leading-relaxed max-w-xs">
+                    <p className="text-muted text-base leading-relaxed max-w-xs">
                         Smart Transport Operations Platform — built for enterprise fleets
                     </p>
 
@@ -187,10 +187,10 @@ const Login = () => {
                                         <Icon style={{ color: feat.color, width: "18px", height: "18px" }} />
                                     </div>
                                     <div>
-                                        <p className="text-sm font-semibold text-white mb-0.5">
+                                        <p className="text-sm font-semibold text-primary mb-0.5">
                                             {feat.role}
                                         </p>
-                                        <p className="text-xs text-gray-500 leading-relaxed">
+                                        <p className="text-xs text-muted leading-relaxed">
                                             {feat.desc}
                                         </p>
                                     </div>
@@ -221,8 +221,8 @@ const Login = () => {
                 {/* Mobile logo — only shown on small screens */}
                 <div className="lg:hidden mb-8 text-center">
                     <TransitLogo size={48} />
-                    <h1 className="text-2xl font-bold text-white mt-3">TransitOps</h1>
-                    <p className="text-gray-500 text-sm mt-1">Smart Transport Operations Platform</p>
+                    <h1 className="text-2xl font-bold text-primary mt-3">TransitOps</h1>
+                    <p className="text-muted text-sm mt-1">Smart Transport Operations Platform</p>
                 </div>
 
                 {/* Card */}

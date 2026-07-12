@@ -17,6 +17,7 @@ import Reports     from "../pages/reports/Reports";
 import Users       from "../pages/users/Users";
 import ChangePassword from "../pages/auth/ChangePassword";
 import Profile     from "../pages/settings/Profile";
+import Settings    from "../pages/settings/Settings";
 
 const AppRoutes = () => {
     return (
@@ -39,6 +40,7 @@ const AppRoutes = () => {
                 >
                     <Route path="/dashboard"   element={<Dashboard />} />
                     <Route path="/profile"     element={<Profile />} />
+                    <Route path="/settings"    element={<Settings />} />
                     <Route path="/change-password" element={<ChangePassword />} />
 
                     {/* Feature routes with RoleGuard */}

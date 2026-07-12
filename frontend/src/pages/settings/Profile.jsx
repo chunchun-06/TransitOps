@@ -18,8 +18,8 @@ const Profile = () => {
     return (
         <div className="max-w-3xl animate-fade-in-up">
             <div className="mb-8">
-                <h1 className="text-2xl font-bold text-white tracking-tight">My Profile</h1>
-                <p className="text-gray-500 text-sm mt-1">
+                <h1 className="text-2xl font-bold text-primary tracking-tight">My Profile</h1>
+                <p className="text-muted text-sm mt-1">
                     Manage your account details and security.
                 </p>
             </div>
@@ -53,8 +53,8 @@ const Profile = () => {
                         {initials}
                     </div>
                     <div>
-                        <h2 className="text-2xl font-bold text-white mb-1">{user?.username}</h2>
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#C98A1C]/10 text-[#C98A1C] text-xs font-semibold border border-[#C98A1C]/20">
+                        <h2 className="text-2xl font-bold text-primary mb-1">{user?.username}</h2>
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-accent/10 text-accent text-xs font-semibold border border-accent/20">
                             {user?.role}
                         </span>
                     </div>
@@ -63,59 +63,59 @@ const Profile = () => {
                 <div className="p-8 space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <p className="text-xs text-gray-500 uppercase tracking-widest font-medium mb-2">Username</p>
+                            <p className="text-xs text-muted uppercase tracking-widest font-medium mb-2">Username</p>
                             <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/[0.02] border border-white/[0.05] transition-all hover:bg-white/[0.04]">
-                                <HiOutlineUser className="text-[#C98A1C] w-5 h-5" />
-                                <span className="text-gray-200 text-sm font-medium">{user?.username}</span>
+                                <HiOutlineUser className="text-accent w-5 h-5" />
+                                <span className="text-primary text-sm font-medium">{user?.username}</span>
                             </div>
                         </div>
                         <div>
-                            <p className="text-xs text-gray-500 uppercase tracking-widest font-medium mb-2">Employee ID</p>
+                            <p className="text-xs text-muted uppercase tracking-widest font-medium mb-2">Employee ID</p>
                             <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/[0.02] border border-white/[0.05] transition-all hover:bg-white/[0.04]">
-                                <HiOutlineIdentification className="text-[#C98A1C] w-5 h-5" />
-                                <span className="text-gray-200 text-sm font-medium">{employeeId}</span>
+                                <HiOutlineIdentification className="text-accent w-5 h-5" />
+                                <span className="text-primary text-sm font-medium">{employeeId}</span>
                             </div>
                         </div>
                         <div>
-                            <p className="text-xs text-gray-500 uppercase tracking-widest font-medium mb-2">Email Address</p>
+                            <p className="text-xs text-muted uppercase tracking-widest font-medium mb-2">Email Address</p>
                             <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/[0.02] border border-white/[0.05] transition-all hover:bg-white/[0.04]">
-                                <HiOutlineMail className="text-[#C98A1C] w-5 h-5" />
-                                <span className="text-gray-200 text-sm font-medium">{user?.email}</span>
+                                <HiOutlineMail className="text-accent w-5 h-5" />
+                                <span className="text-primary text-sm font-medium">{user?.email}</span>
                             </div>
                         </div>
                         <div>
-                            <p className="text-xs text-gray-500 uppercase tracking-widest font-medium mb-2">Phone Number</p>
+                            <p className="text-xs text-muted uppercase tracking-widest font-medium mb-2">Phone Number</p>
                             <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/[0.02] border border-white/[0.05] transition-all hover:bg-white/[0.04]">
-                                <HiOutlinePhone className="text-[#C98A1C] w-5 h-5" />
-                                <span className="text-gray-200 text-sm font-medium">{phone}</span>
+                                <HiOutlinePhone className="text-accent w-5 h-5" />
+                                <span className="text-primary text-sm font-medium">{phone}</span>
                             </div>
                         </div>
                         <div>
-                            <p className="text-xs text-gray-500 uppercase tracking-widest font-medium mb-2">Member Since</p>
+                            <p className="text-xs text-muted uppercase tracking-widest font-medium mb-2">Member Since</p>
                             <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/[0.02] border border-white/[0.05] transition-all hover:bg-white/[0.04]">
-                                <HiOutlineCalendar className="text-[#C98A1C] w-5 h-5" />
-                                <span className="text-gray-200 text-sm font-medium">{createdAt}</span>
+                                <HiOutlineCalendar className="text-accent w-5 h-5" />
+                                <span className="text-primary text-sm font-medium">{createdAt}</span>
                             </div>
                         </div>
                         <div>
-                            <p className="text-xs text-gray-500 uppercase tracking-widest font-medium mb-2">Last Login</p>
+                            <p className="text-xs text-muted uppercase tracking-widest font-medium mb-2">Last Login</p>
                             <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/[0.02] border border-white/[0.05] transition-all hover:bg-white/[0.04]">
-                                <HiOutlineClock className="text-[#C98A1C] w-5 h-5" />
-                                <span className="text-gray-200 text-sm font-medium">{lastLogin}</span>
+                                <HiOutlineClock className="text-accent w-5 h-5" />
+                                <span className="text-primary text-sm font-medium">{lastLogin}</span>
                             </div>
                         </div>
                     </div>
 
                     <div className="pt-4 border-t border-white/[0.06]">
-                        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                            <HiOutlineShieldCheck className="text-[#C98A1C]" />
+                        <h3 className="text-lg font-semibold text-primary mb-4 flex items-center gap-2">
+                            <HiOutlineShieldCheck className="text-accent" />
                             Security
                         </h3>
                         <Link
                             to="/change-password"
-                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-sm font-medium text-white transition-colors"
+                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-sm font-medium text-primary transition-colors"
                         >
-                            <HiOutlineKey className="w-4 h-4 text-gray-400" />
+                            <HiOutlineKey className="w-4 h-4 text-secondary" />
                             Change Password
                         </Link>
                     </div>

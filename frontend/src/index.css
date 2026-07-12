@@ -1,6 +1,57 @@
 @import "tailwindcss";
 
+@theme {
+  --color-background: var(--bg-main);
+  --color-sidebar: var(--bg-sidebar);
+  --color-card: var(--bg-card);
+  --color-border: var(--border-color);
+  --color-primary: var(--text-primary);
+  --color-secondary: var(--text-secondary);
+  --color-muted: var(--text-muted);
+  --color-accent: var(--color-gold);
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-danger: var(--color-danger);
+  --color-info: var(--color-info);
+}
+
 @layer base {
+  :root {
+    --bg-main: #F9FAFB;
+    --bg-sidebar: #FFFFFF;
+    --bg-card: #FFFFFF;
+    --border-color: #E5E7EB;
+    
+    --text-primary: #111827;
+    --text-secondary: #4B5563;
+    --text-muted: #9CA3AF;
+    
+    --color-gold: #D4A017;
+    
+    --color-success: #10B981;
+    --color-warning: #F59E0B;
+    --color-danger: #EF4444;
+    --color-info: #3B82F6;
+  }
+
+  .dark {
+    --bg-main: #0F1115;
+    --bg-sidebar: #15181D;
+    --bg-card: #1B1F24;
+    --border-color: #2A2E35;
+    
+    --text-primary: #FFFFFF;
+    --text-secondary: #9CA3AF;
+    --text-muted: #6B7280;
+    
+    --color-gold: #D4A017;
+    
+    --color-success: #10B981;
+    --color-warning: #F59E0B;
+    --color-danger: #F87171;
+    --color-info: #60A5FA;
+  }
+
   *, *::before, *::after {
     box-sizing: border-box;
   }
@@ -12,11 +63,18 @@
   body {
     margin: 0;
     padding: 0;
-    background-color: #0a0a0a;
-    color: #f1f5f9;
+    background-color: var(--bg-main);
+    color: var(--text-primary);
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  .bg-background, .bg-sidebar, .bg-card, .border-border, .text-primary, .text-secondary {
+    transition-property: background-color, border-color, color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 300ms;
   }
 
   ::-webkit-scrollbar {

@@ -6,14 +6,14 @@ const NotFound = () => {
     const navigate = useNavigate();
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] text-white p-6">
+        <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] text-primary p-6">
             <div className="max-w-md w-full text-center bg-[#111111]/50 backdrop-blur-md border border-white/10 rounded-2xl p-10 shadow-2xl">
-                <div className="flex justify-center mb-6 text-[#C98A1C]">
+                <div className="flex justify-center mb-6 text-accent">
                     <HiOutlineExclamationCircle className="w-20 h-20" />
                 </div>
                 <h1 className="text-4xl font-extrabold mb-4 tracking-tight">404</h1>
                 <h2 className="text-xl font-semibold mb-2">Page Not Found</h2>
-                <p className="text-gray-400 mb-8 text-sm">
+                <p className="text-secondary mb-8 text-sm">
                     The page you are looking for doesn't exist or has been moved.
                 </p>
                 <button

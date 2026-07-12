@@ -99,16 +99,16 @@ const Fuel = () => {
     };
 
     return (
-        <div className="animate-fade-in-up max-w-[1600px] mx-auto text-white">
+        <div className="animate-fade-in-up max-w-[1600px] mx-auto text-primary">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                 
                 {/* Left Side: Form */}
                 <div className="lg:col-span-4 space-y-6">
-                    <div className="bg-[#1B1F24] border border-[#2B3038] rounded-2xl p-6 shadow-sm">
-                        <h2 className="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-6">Log Fuel Fill-up</h2>
+                    <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
+                        <h2 className="text-[10px] uppercase tracking-widest text-muted font-bold mb-6">Log Fuel Fill-up</h2>
                         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
                             {errorMsg && (
-                                <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-sm p-3 rounded-lg">
+                                <div className="bg-danger/10 border border-red-500/20 text-danger text-sm p-3 rounded-lg">
                                     <span className="font-semibold">Error:</span> {errorMsg}
                                 </div>
                             )}
@@ -132,38 +132,38 @@ const Fuel = () => {
 
                 {/* Right Side: Log */}
                 <div className="lg:col-span-8 flex flex-col gap-6">
-                    <h2 className="text-[10px] uppercase tracking-widest text-gray-500 font-bold ml-1">Fuel Log</h2>
-                    <div className="bg-[#1B1F24] border border-[#2B3038] rounded-2xl overflow-hidden shadow-sm">
+                    <h2 className="text-[10px] uppercase tracking-widest text-muted font-bold ml-1">Fuel Log</h2>
+                    <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
                         <div className="overflow-x-auto">
                             <table className="w-full text-left border-collapse whitespace-nowrap">
                                 <thead>
-                                    <tr className="border-b border-[#2B3038] bg-[#15181D]">
-                                        <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Vehicle</th>
-                                        <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Trip ID</th>
-                                        <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Volume (L)</th>
-                                        <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Cost</th>
-                                        <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Date</th>
-                                        <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
+                                    <tr className="border-b border-border bg-sidebar">
+                                        <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider">Vehicle</th>
+                                        <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider">Trip ID</th>
+                                        <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider">Volume (L)</th>
+                                        <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider">Cost</th>
+                                        <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider">Date</th>
+                                        <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider text-right">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-[#2B3038]">
                                     {logs.length === 0 ? (
                                         <tr>
-                                            <td colSpan={6} className="px-6 py-12 text-center text-gray-500 text-sm">No fuel logs found.</td>
+                                            <td colSpan={6} className="px-6 py-12 text-center text-muted text-sm">No fuel logs found.</td>
                                         </tr>
                                     ) : (
                                         logs.map((log) => {
                                             const v = vehicles.find(veh => veh.id === log.vehicle_id);
                                             return (
-                                                <tr key={log.id} className="hover:bg-white/[0.02] transition-colors group">
-                                                    <td className="px-6 py-4 text-sm font-semibold text-gray-200">{v?.registration_no || "—"}</td>
-                                                    <td className="px-6 py-4 text-sm text-gray-400">{log.trip_id ? `TR${String(log.trip_id).padStart(3, '0')}` : "—"}</td>
-                                                    <td className="px-6 py-4 text-sm text-gray-400">{log.fuel_amount} L</td>
-                                                    <td className="px-6 py-4 text-sm text-gray-400">{formatCurrency(log.cost)}</td>
-                                                    <td className="px-6 py-4 text-sm text-gray-400">{formatDate(log.date)}</td>
+                                                <tr key={log.id} className="hover:bg-primary/[0.02] transition-colors group">
+                                                    <td className="px-6 py-4 text-sm font-semibold text-primary">{v?.registration_no || "—"}</td>
+                                                    <td className="px-6 py-4 text-sm text-secondary">{log.trip_id ? `TR${String(log.trip_id).padStart(3, '0')}` : "—"}</td>
+                                                    <td className="px-6 py-4 text-sm text-secondary">{log.fuel_amount} L</td>
+                                                    <td className="px-6 py-4 text-sm text-secondary">{formatCurrency(log.cost)}</td>
+                                                    <td className="px-6 py-4 text-sm text-secondary">{formatDate(log.date)}</td>
                                                     <td className="px-6 py-4 text-sm text-right">
                                                         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            <button onClick={() => handleDelete(log.id)} className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded transition-colors" title="Delete">
+                                                            <button onClick={() => handleDelete(log.id)} className="p-1.5 text-secondary hover:text-danger hover:bg-red-400/10 rounded transition-colors" title="Delete">
                                                                 <HiOutlineTrash className="w-4 h-4" />
                                                             </button>
                                                         </div>

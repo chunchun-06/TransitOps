@@ -171,7 +171,7 @@ const LoginForm = () => {
     const showError = (field) => touched[field] && fieldErrors[field];
 
     const inputBase = [
-        "w-full h-12 pl-11 pr-4 rounded-xl text-sm text-white",
+        "w-full h-12 pl-11 pr-4 rounded-xl text-sm text-primary",
         "bg-[#111111]/50 backdrop-blur-sm border transition-all duration-200",
         "placeholder-gray-600 focus:outline-none focus:ring-0",
         "input-gold",
@@ -191,17 +191,17 @@ const LoginForm = () => {
 
             {/* Heading */}
             <div className="mb-8">
-                <h1 className="text-3xl font-bold text-white tracking-tight">
+                <h1 className="text-3xl font-bold text-primary tracking-tight">
                     Sign in to your account
                 </h1>
-                <p className="text-gray-500 mt-2 text-sm">
+                <p className="text-muted mt-2 text-sm">
                     Enter your credentials to access TransitOps
                 </p>
             </div>
 
             {/* Global Error */}
             {globalError && (
-                <div className="mb-6 flex items-start gap-3 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl px-4 py-3 text-sm animate-fade-in">
+                <div className="mb-6 flex items-start gap-3 bg-danger/10 border border-red-500/30 text-danger rounded-xl px-4 py-3 text-sm animate-fade-in">
                     <HiOutlineExclamationCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
                     <span>{globalError}</span>
                 </div>
@@ -219,12 +219,12 @@ const LoginForm = () => {
                 <div>
                     <label
                         htmlFor="login-email"
-                        className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-widest"
+                        className="block text-xs font-medium text-secondary mb-2 uppercase tracking-widest"
                     >
                         Email Address
                     </label>
                     <div className="relative">
-                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted">
                             <HiOutlineMail className="w-5 h-5" />
                         </span>
                         <input
@@ -240,7 +240,7 @@ const LoginForm = () => {
                         />
                     </div>
                     {showError("email") && (
-                        <p className="mt-1.5 text-xs text-red-400 animate-fade-in">
+                        <p className="mt-1.5 text-xs text-danger animate-fade-in">
                             {fieldErrors.email}
                         </p>
                     )}
@@ -250,12 +250,12 @@ const LoginForm = () => {
                 <div>
                     <label
                         htmlFor="login-password"
-                        className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-widest"
+                        className="block text-xs font-medium text-secondary mb-2 uppercase tracking-widest"
                     >
                         Password
                     </label>
                     <div className="relative">
-                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted">
                             <HiOutlineLockClosed className="w-5 h-5" />
                         </span>
                         <input
@@ -272,7 +272,7 @@ const LoginForm = () => {
                         <button
                             type="button"
                             onClick={() => setShowPassword((v) => !v)}
-                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted hover:text-secondary transition-colors"
                             tabIndex={-1}
                             aria-label={showPassword ? "Hide password" : "Show password"}
                         >
@@ -283,7 +283,7 @@ const LoginForm = () => {
                         </button>
                     </div>
                     {showError("password") && (
-                        <p className="mt-1.5 text-xs text-red-400 animate-fade-in">
+                        <p className="mt-1.5 text-xs text-danger animate-fade-in">
                             {fieldErrors.password}
                         </p>
                     )}
@@ -304,7 +304,7 @@ const LoginForm = () => {
                                 onChange={handleChange}
                                 className="sr-only peer"
                             />
-                            <div className="w-4.5 h-4.5 w-[18px] h-[18px] rounded border border-white/20 bg-white/[0.04] peer-checked:bg-[#C98A1C] peer-checked:border-[#C98A1C] transition-all duration-200 flex items-center justify-center">
+                            <div className="w-4.5 h-4.5 w-[18px] h-[18px] rounded border border-white/20 bg-white/[0.04] peer-checked:bg-accent peer-checked:border-accent transition-all duration-200 flex items-center justify-center">
                                 {form.remember && (
                                     <svg className="w-2.5 h-2.5 text-black" viewBox="0 0 12 10" fill="none">
                                         <path d="M1 5l3.5 3.5L11 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -312,7 +312,7 @@ const LoginForm = () => {
                                 )}
                             </div>
                         </div>
-                        <span className="text-sm text-gray-400 group-hover:text-gray-300 transition-colors select-none">
+                        <span className="text-sm text-secondary group-hover:text-secondary transition-colors select-none">
                             Remember me
                         </span>
                     </label>
@@ -320,7 +320,7 @@ const LoginForm = () => {
                     <button
                         type="button"
                         onClick={() => navigate("/forgot-password")}
-                        className="text-sm text-[#C98A1C] hover:text-[#f5c842] transition-colors duration-200"
+                        className="text-sm text-accent hover:text-[#f5c842] transition-colors duration-200"
                     >
                         Forgot password?
                     </button>
@@ -336,7 +336,7 @@ const LoginForm = () => {
                         "flex items-center justify-center gap-2.5",
                         "transition-all duration-200",
                         loading
-                            ? "bg-[#C98A1C]/60 text-black/60 cursor-not-allowed"
+                            ? "bg-accent/60 text-black/60 cursor-not-allowed"
                             : "gold-gradient text-black hover:brightness-110 hover:shadow-lg hover:shadow-[#C98A1C]/25 active:scale-[0.99]",
                     ].join(" ")}
                 >
@@ -375,7 +375,7 @@ const LoginForm = () => {
                                     {role}
                                 </span>
                             </div>
-                            <p className="text-[11px] text-gray-500 leading-relaxed">
+                            <p className="text-[11px] text-muted leading-relaxed">
                                 {meta.description}
                             </p>
                         </div>

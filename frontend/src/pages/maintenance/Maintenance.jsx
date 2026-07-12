@@ -117,28 +117,28 @@ const Maintenance = () => {
     };
 
     return (
-        <div className="animate-fade-in-up max-w-[1600px] mx-auto text-white">
+        <div className="animate-fade-in-up max-w-[1600px] mx-auto text-primary">
             
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                 
                 {/* Left Side: Log Form */}
                 <div className="lg:col-span-4 space-y-6">
-                    <div className="bg-[#1B1F24] border border-[#2B3038] rounded-2xl p-6 shadow-sm relative">
+                    <div className="bg-card border border-border rounded-2xl p-6 shadow-sm relative">
                         {editingId && (
                             <div className="absolute top-6 right-6">
-                                <button onClick={handleCancelEdit} className="text-gray-400 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] p-1.5 rounded-lg transition-colors" title="Cancel Edit">
+                                <button onClick={handleCancelEdit} className="text-secondary hover:text-primary bg-primary/[0.05] hover:bg-primary/[0.1] p-1.5 rounded-lg transition-colors" title="Cancel Edit">
                                     <HiX className="w-4 h-4" />
                                 </button>
                             </div>
                         )}
 
-                        <h2 className="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-6">
+                        <h2 className="text-[10px] uppercase tracking-widest text-muted font-bold mb-6">
                             {editingId ? "Edit Service Record" : "Log Service Record"}
                         </h2>
                         
                         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
                             {errorMsg && (
-                                <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-sm p-3 rounded-lg">
+                                <div className="bg-danger/10 border border-red-500/20 text-danger text-sm p-3 rounded-lg">
                                     <span className="font-semibold">Error:</span> {errorMsg}
                                 </div>
                             )}
@@ -197,26 +197,26 @@ const Maintenance = () => {
                         </form>
 
                         {/* Lifecycle Rules block exactly as in wireframe */}
-                        <div className="mt-8 pt-6 border-t border-[#2B3038] text-xs font-semibold tracking-wide space-y-4">
+                        <div className="mt-8 pt-6 border-t border-border text-xs font-semibold tracking-wide space-y-4">
                             <div className="flex items-center gap-3">
-                                <span className="text-[#10B981]">Available</span>
+                                <span className="text-success">Available</span>
                                 <div className="flex-1 border-t border-dashed border-gray-600 relative flex justify-center">
-                                    <span className="absolute -top-2.5 bg-[#1B1F24] px-2 text-gray-500 text-[10px]">creating active record</span>
-                                    <HiOutlineArrowRight className="absolute right-0 -top-1.5 text-gray-600 w-3 h-3 bg-[#1B1F24]" />
+                                    <span className="absolute -top-2.5 bg-card px-2 text-muted text-[10px]">creating active record</span>
+                                    <HiOutlineArrowRight className="absolute right-0 -top-1.5 text-gray-600 w-3 h-3 bg-card" />
                                 </div>
-                                <span className="text-[#F59E0B]">In Shop</span>
+                                <span className="text-warning">In Shop</span>
                             </div>
                             
                             <div className="flex items-center gap-3">
-                                <span className="text-[#F59E0B]">In Shop</span>
+                                <span className="text-warning">In Shop</span>
                                 <div className="flex-1 border-t border-dashed border-gray-600 relative flex justify-center">
-                                    <span className="absolute -top-2.5 bg-[#1B1F24] px-2 text-gray-500 text-[10px]">closing record (not retired)</span>
-                                    <HiOutlineArrowRight className="absolute right-0 -top-1.5 text-gray-600 w-3 h-3 bg-[#1B1F24]" />
+                                    <span className="absolute -top-2.5 bg-card px-2 text-muted text-[10px]">closing record (not retired)</span>
+                                    <HiOutlineArrowRight className="absolute right-0 -top-1.5 text-gray-600 w-3 h-3 bg-card" />
                                 </div>
-                                <span className="text-[#10B981]">Available</span>
+                                <span className="text-success">Available</span>
                             </div>
                             
-                            <p className="text-[#C98A1C] mt-4 pt-2">
+                            <p className="text-accent mt-4 pt-2">
                                 Note: In Shop vehicles are removed from the dispatch pool.
                             </p>
                         </div>
@@ -225,25 +225,25 @@ const Maintenance = () => {
 
                 {/* Right Side: Service Log */}
                 <div className="lg:col-span-8 flex flex-col gap-6">
-                    <h2 className="text-[10px] uppercase tracking-widest text-gray-500 font-bold ml-1">Service Log</h2>
+                    <h2 className="text-[10px] uppercase tracking-widest text-muted font-bold ml-1">Service Log</h2>
                     
-                    <div className="bg-[#1B1F24] border border-[#2B3038] rounded-2xl overflow-hidden flex flex-col shadow-sm">
+                    <div className="bg-card border border-border rounded-2xl overflow-hidden flex flex-col shadow-sm">
                         <div className="overflow-x-auto">
                             <table className="w-full text-left border-collapse whitespace-nowrap">
                                 <thead>
-                                    <tr className="border-b border-[#2B3038] bg-[#15181D]">
-                                        <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Vehicle</th>
-                                        <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Service</th>
-                                        <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Cost</th>
-                                        <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Date</th>
-                                        <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                                        <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
+                                    <tr className="border-b border-border bg-sidebar">
+                                        <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider">Vehicle</th>
+                                        <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider">Service</th>
+                                        <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider">Cost</th>
+                                        <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider">Date</th>
+                                        <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider">Status</th>
+                                        <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider text-right">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-[#2B3038]">
                                     {logs.length === 0 ? (
                                         <tr>
-                                            <td colSpan={6} className="px-6 py-12 text-center text-gray-500 text-sm">
+                                            <td colSpan={6} className="px-6 py-12 text-center text-muted text-sm">
                                                 No service records found.
                                             </td>
                                         </tr>
@@ -252,11 +252,11 @@ const Maintenance = () => {
                                             const v = vehicles.find(veh => veh.id === log.vehicle_id);
                                             const vName = v ? v.registration_no : "—";
                                             return (
-                                                <tr key={log.id} className="hover:bg-white/[0.02] transition-colors group">
-                                                    <td className="px-6 py-4 text-sm font-semibold text-gray-200">{vName}</td>
-                                                    <td className="px-6 py-4 text-sm text-gray-400">{log.service_type}</td>
-                                                    <td className="px-6 py-4 text-sm text-gray-400">{formatCurrency(log.cost)}</td>
-                                                    <td className="px-6 py-4 text-sm text-gray-400">{formatDate(log.service_date)}</td>
+                                                <tr key={log.id} className="hover:bg-primary/[0.02] transition-colors group">
+                                                    <td className="px-6 py-4 text-sm font-semibold text-primary">{vName}</td>
+                                                    <td className="px-6 py-4 text-sm text-secondary">{log.service_type}</td>
+                                                    <td className="px-6 py-4 text-sm text-secondary">{formatCurrency(log.cost)}</td>
+                                                    <td className="px-6 py-4 text-sm text-secondary">{formatDate(log.service_date)}</td>
                                                     <td className="px-6 py-4 text-sm">
                                                         <Badge status={log.status}>{log.status}</Badge>
                                                     </td>
@@ -264,14 +264,14 @@ const Maintenance = () => {
                                                         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                             <button 
                                                                 onClick={() => handleEdit(log)}
-                                                                className="p-1.5 text-gray-400 hover:text-blue-400 hover:bg-blue-400/10 rounded transition-colors"
+                                                                className="p-1.5 text-secondary hover:text-blue-400 hover:bg-blue-400/10 rounded transition-colors"
                                                                 title="Edit"
                                                             >
                                                                 <HiOutlinePencil className="w-4 h-4" />
                                                             </button>
                                                             <button 
                                                                 onClick={() => handleDelete(log.id)}
-                                                                className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded transition-colors"
+                                                                className="p-1.5 text-secondary hover:text-danger hover:bg-red-400/10 rounded transition-colors"
                                                                 title="Delete"
                                                             >
                                                                 <HiOutlineTrash className="w-4 h-4" />

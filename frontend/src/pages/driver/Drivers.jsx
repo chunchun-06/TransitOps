@@ -1,34 +1,15 @@
-import { useEffect, useState } from "react";
-import { HiOutlineSearch, HiOutlinePlus, HiOutlinePencil, HiOutlineTrash, HiX } from "react-icons/hi";
-import { getDrivers, createDriver, updateDriver, deleteDriver } from "../../api/driver.api";
-import { Button, Input, Select, Badge } from "../../components/common";
-
-const Drawer = ({ isOpen, onClose, title, children }) => {
-    if (!isOpen) return null;
-    return (
-        <div className="fixed inset-0 z-50 flex justify-end">
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose}></div>
-            <div className="relative w-full max-w-md bg-[#15181D] border-l border-[#2B3038] shadow-2xl h-full flex flex-col animate-slide-in-right">
-                <div className="flex items-center justify-between px-6 py-5 border-b border-[#2B3038]">
-                    <h3 className="text-lg font-bold text-white tracking-tight">{title}</h3>
-                    <button onClick={onClose} className="text-gray-400 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] p-1.5 rounded-lg transition-colors">
-                        <HiX className="w-5 h-5" />
-                    </button>
-                </div>
-                <div className="p-6 flex-1 overflow-y-auto">
-                    {children}
-                </div>
-            </div>
-        </div>
-    );
-};
+import { useEffect, useState, useMemo } from "react";
+import { HiOutlineSearch, HiOutlinePlus, HiOutlinePencil, HiOutlineTrash, HiOutlineDownload, HiOutlinePrinter, HiX, HiOutlineChevronDown, HiOutlineChevronUp, HiOutlineDocumentReport, HiOutlineUser } from "react-icons/hi";
+import { getDrivers, createDriver, updateDriver, deleteDriver, bulkDeleteDrivers, bulkUpdateDriverStatus } from "../../api/driver.api";
+import { Button, Input, Select, Badge, Modal } from "../../components/common";
 
 const initialForm = {
     name: "",
-    license_no: "",
-    license_category: "LMV",
+    license_number: "",
+    license_category: "Commercial",
+    contact_number: "",
     license_expiry: "",
-    contact_no: "",
+    safety_score: 100,
     status: "Available"
 };
 
@@ -36,23 +17,37 @@ const Drivers = () => {
     const [drivers, setDrivers] = useState([]);
     const [loading, setLoading] = useState(false);
     
-    // Filters
+    // Filters & Search
     const [searchTerm, setSearchTerm] = useState("");
+    const [categoryFilter, setCategoryFilter] = useState("All");
     const [statusFilter, setStatusFilter] = useState("All");
 
-    // Drawer State
-    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-    const [drawerMode, setDrawerMode] = useState("create");
+    // Sorting
+    const [sortConfig, setSortConfig] = useState({ key: "created_at", direction: "desc" });
+
+    // Pagination
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
+
+    // Bulk Actions
+    const [selectedIds, setSelectedIds] = useState([]);
+    const [bulkStatus, setBulkStatus] = useState("");
+
+    // Modal & Form State
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [modalMode, setModalMode] = useState("create"); // create, edit, details
     const [form, setForm] = useState(initialForm);
     const [currentId, setCurrentId] = useState(null);
     const [formError, setFormError] = useState("");
+    const [selectedDriverDetails, setSelectedDriverDetails] = useState(null);
 
     const fetchDrivers = async () => {
         try {
             const res = await getDrivers();
             setDrivers(res.data || []);
+            setSelectedIds([]);
         } catch (err) {
-            console.error(err);
+            console.error("Fetch drivers error:", err);
         }
     };
 
@@ -60,26 +55,63 @@ const Drivers = () => {
         fetchDrivers();
     }, []);
 
-    const handleOpenDrawer = (mode = "create", driver = null) => {
-        setDrawerMode(mode);
+    const handleSort = (key) => {
+        let direction = "asc";
+        if (sortConfig.key === key && sortConfig.direction === "asc") {
+            direction = "desc";
+        }
+        setSortConfig({ key, direction });
+    };
+
+    // Filter, Sort, and Paginate Data
+    const processedDrivers = useMemo(() => {
+        let filtered = drivers.filter(d => {
+            const matchesSearch = d.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                                  d.license_number?.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesCategory = categoryFilter === "All" || d.license_category === categoryFilter;
+            const matchesStatus = statusFilter === "All" || d.status === statusFilter;
+            return (matchesSearch || !searchTerm) && matchesCategory && matchesStatus;
+        });
+
+        filtered.sort((a, b) => {
+            if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === "asc" ? -1 : 1;
+            if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === "asc" ? 1 : -1;
+            return 0;
+        });
+
+        return filtered;
+    }, [drivers, searchTerm, categoryFilter, statusFilter, sortConfig]);
+
+    const paginatedDrivers = useMemo(() => {
+        const start = (currentPage - 1) * itemsPerPage;
+        return processedDrivers.slice(start, start + itemsPerPage);
+    }, [processedDrivers, currentPage]);
+
+    const totalPages = Math.ceil(processedDrivers.length / itemsPerPage) || 1;
+
+    // Form Handlers
+    const handleOpenModal = (mode = "create", driver = null) => {
+        setModalMode(mode);
         setFormError("");
         if (mode === "edit" && driver) {
             setCurrentId(driver.id);
-            // Format date to YYYY-MM-DD for input type="date" if possible
-            const expiry = driver.license_expiry ? new Date(driver.license_expiry).toISOString().split('T')[0] : "";
             setForm({
                 name: driver.name || "",
-                license_no: driver.license_no || "",
-                license_category: driver.license_category || "LMV",
-                license_expiry: expiry,
-                contact_no: driver.contact_no || "",
+                license_number: driver.license_number || "",
+                license_category: driver.license_category || "Commercial",
+                contact_number: driver.contact_number || "",
+                license_expiry: driver.license_expiry ? new Date(driver.license_expiry).toISOString().split('T')[0] : "",
+                safety_score: driver.safety_score || 100,
                 status: driver.status || "Available"
             });
-        } else {
+            setIsModalOpen(true);
+        } else if (mode === "create") {
             setCurrentId(null);
             setForm(initialForm);
+            setIsModalOpen(true);
+        } else if (mode === "details" && driver) {
+            setSelectedDriverDetails(driver);
         }
-        setIsDrawerOpen(true);
     };
 
     const handleChange = (e) => {
@@ -92,13 +124,19 @@ const Drivers = () => {
         try {
             setLoading(true);
             setFormError("");
-            const payload = { ...form };
-            if (drawerMode === "create") {
+
+            const payload = {
+                ...form,
+                safety_score: Number(form.safety_score),
+            };
+
+            if (modalMode === "create") {
                 await createDriver(payload);
             } else {
                 await updateDriver(currentId, payload);
             }
-            setIsDrawerOpen(false);
+
+            setIsModalOpen(false);
             fetchDrivers();
         } catch (err) {
             const msg = err.response?.data?.message || "Something went wrong";
@@ -114,121 +152,195 @@ const Drivers = () => {
             await deleteDriver(id);
             fetchDrivers();
         } catch (err) {
-            console.error(err);
             alert(err.response?.data?.message || "Failed to delete");
         }
     };
 
-    const filteredDrivers = drivers.filter(d => {
-        const matchSearch = d.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                            d.license_no?.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchStatus = statusFilter === "All" || d.status === statusFilter;
-        return matchSearch && matchStatus;
-    });
-
-    const isExpired = (dateString) => {
-        if (!dateString) return false;
-        return new Date(dateString) < new Date();
+    // Bulk Actions Handlers
+    const toggleSelectAll = (e) => {
+        if (e.target.checked) setSelectedIds(paginatedDrivers.map(d => d.id));
+        else setSelectedIds([]);
     };
 
-    const formatDate = (dateString) => {
-        if (!dateString) return "—";
-        const d = new Date(dateString);
-        return `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+    const toggleSelectOne = (id) => {
+        if (selectedIds.includes(id)) setSelectedIds(selectedIds.filter(i => i !== id));
+        else setSelectedIds([...selectedIds, id]);
+    };
+
+    const handleBulkDelete = async () => {
+        if (!window.confirm(`Delete ${selectedIds.length} drivers?`)) return;
+        try {
+            await bulkDeleteDrivers(selectedIds);
+            fetchDrivers();
+        } catch (err) {
+            alert(err.response?.data?.message || "Bulk delete failed");
+        }
+    };
+
+    const handleBulkStatusChange = async () => {
+        if (!bulkStatus) return;
+        if (!window.confirm(`Change status of ${selectedIds.length} drivers to ${bulkStatus}?`)) return;
+        try {
+            await bulkUpdateDriverStatus(selectedIds, bulkStatus);
+            setBulkStatus("");
+            fetchDrivers();
+        } catch (err) {
+            alert(err.response?.data?.message || "Bulk update failed");
+        }
+    };
+
+    // Export Handlers
+    const handleExportCSV = () => {
+        const headers = ["ID", "Name", "License No", "Category", "Phone", "Safety Score", "Status", "Expiry Date"];
+        const rows = processedDrivers.map(d => [
+            d.id, `"${d.name}"`, d.license_number, d.license_category, 
+            d.contact_number, d.safety_score, d.status, d.license_expiry ? new Date(d.license_expiry).toLocaleDateString() : "—"
+        ]);
+        
+        let csvContent = "data:text/csv;charset=utf-8," 
+            + headers.join(",") + "\n"
+            + rows.map(e => e.join(",")).join("\n");
+            
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "transitops_drivers.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const handlePrint = () => {
+        window.print();
+    };
+
+    const SortIcon = ({ column }) => {
+        if (sortConfig.key !== column) return <HiOutlineChevronDown className="w-3 h-3 opacity-30 inline ml-1" />;
+        return sortConfig.direction === "asc" ? <HiOutlineChevronUp className="w-3 h-3 text-accent inline ml-1" /> : <HiOutlineChevronDown className="w-3 h-3 text-accent inline ml-1" />;
     };
 
     return (
-        <div className="animate-fade-in-up space-y-6 max-w-[1600px] mx-auto text-white">
+        <div className="animate-fade-in-up space-y-6 max-w-[1600px] mx-auto text-primary">
             
-            {/* Top Bar */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#1B1F24] p-4 rounded-xl border border-[#2B3038] shadow-sm">
-                <div className="relative flex-1 max-w-md">
-                    <HiOutlineSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
-                    <input
-                        type="text"
-                        placeholder="Search drivers by name or license..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="bg-[#0E0F13] border border-[#2B3038] text-sm text-white rounded-lg pl-10 pr-4 py-2.5 outline-none focus:border-[#C98A1C] transition-colors w-full placeholder-gray-600"
-                    />
+            {/* Top Bar: Actions & Filters */}
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-card p-4 rounded-xl border border-border shadow-sm print:hidden">
+                
+                <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+                    <Select value={categoryFilter} onChange={(e) => {setCategoryFilter(e.target.value); setCurrentPage(1);}} options={[{ label: "Category: All", value: "All" }, { label: "Commercial", value: "Commercial" }, { label: "Heavy Duty", value: "Heavy Duty" }, { label: "Standard", value: "Standard" }]} className="w-[150px]" />
+                    <Select value={statusFilter} onChange={(e) => {setStatusFilter(e.target.value); setCurrentPage(1);}} options={[{ label: "Status: All", value: "All" }, { label: "Available", value: "Available" }, { label: "On Trip", value: "On Trip" }, { label: "Off Duty", value: "Off Duty" }, { label: "Suspended", value: "Suspended" }]} className="w-[140px]" />
+                    <div className="relative flex-1 min-w-[200px]">
+                        <HiOutlineSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted w-4 h-4" />
+                        <input type="text" placeholder="Search name or license..." value={searchTerm} onChange={(e) => {setSearchTerm(e.target.value); setCurrentPage(1);}} className="bg-main border border-border text-sm text-primary rounded-lg pl-10 pr-4 py-2.5 outline-none focus:border-accent transition-colors w-full placeholder-gray-500" />
+                    </div>
                 </div>
-                <Button onClick={() => handleOpenDrawer("create")} className="whitespace-nowrap">
-                    <HiOutlinePlus className="w-4 h-4" /> Add Driver
-                </Button>
+
+                <div className="flex flex-wrap items-center gap-3">
+                    <Button variant="secondary" onClick={handleExportCSV} title="Export CSV"><HiOutlineDownload className="w-4 h-4" /></Button>
+                    <Button variant="secondary" onClick={handlePrint} title="Print/Export PDF"><HiOutlinePrinter className="w-4 h-4" /></Button>
+                    <Button onClick={() => handleOpenModal("create")} className="whitespace-nowrap"><HiOutlinePlus className="w-4 h-4" /> Add Driver</Button>
+                </div>
             </div>
 
-            {/* Table */}
-            <div className="bg-[#1B1F24] border border-[#2B3038] rounded-2xl overflow-hidden flex flex-col shadow-sm">
+            {/* Bulk Actions Bar */}
+            {selectedIds.length > 0 && (
+                <div className="bg-accent/10 border border-accent/30 p-3 rounded-lg flex flex-wrap items-center justify-between gap-4 animate-fade-in-up print:hidden">
+                    <span className="text-sm font-semibold text-accent">{selectedIds.length} driver(s) selected</span>
+                    <div className="flex items-center gap-3">
+                        <select 
+                            value={bulkStatus}
+                            onChange={(e) => setBulkStatus(e.target.value)}
+                            className="bg-card border border-border text-sm text-primary rounded-lg px-3 py-1.5 focus:border-accent outline-none"
+                        >
+                            <option value="">Change Status...</option>
+                            <option value="Available">Available</option>
+                            <option value="Off Duty">Off Duty</option>
+                            <option value="Suspended">Suspended</option>
+                        </select>
+                        <Button variant="secondary" onClick={handleBulkStatusChange} disabled={!bulkStatus} className="py-1.5 text-sm">Update</Button>
+                        <Button variant="secondary" onClick={handleBulkDelete} className="py-1.5 text-sm text-danger border-danger/30 hover:bg-danger/10">Delete Selected</Button>
+                    </div>
+                </div>
+            )}
+
+            {/* Table Card */}
+            <div className="bg-card border border-border rounded-2xl overflow-hidden flex flex-col shadow-sm">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse whitespace-nowrap">
                         <thead>
-                            <tr className="border-b border-[#2B3038] bg-[#15181D]">
-                                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Driver</th>
-                                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">License No.</th>
-                                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Category</th>
-                                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Expiry</th>
-                                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Contact</th>
-                                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Trip Compl.</th>
-                                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Safety</th>
-                                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
+                            <tr className="border-b border-border bg-sidebar">
+                                <th className="px-4 py-4 w-12 text-center print:hidden">
+                                    <input type="checkbox" checked={selectedIds.length === paginatedDrivers.length && paginatedDrivers.length > 0} onChange={toggleSelectAll} className="accent-accent cursor-pointer" />
+                                </th>
+                                <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort("name")}>
+                                    Driver Name <SortIcon column="name" />
+                                </th>
+                                <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort("license_number")}>
+                                    License No. <SortIcon column="license_number" />
+                                </th>
+                                <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort("license_category")}>
+                                    Category <SortIcon column="license_category" />
+                                </th>
+                                <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider">
+                                    Phone
+                                </th>
+                                <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort("safety_score")}>
+                                    Safety Score <SortIcon column="safety_score" />
+                                </th>
+                                <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort("license_expiry")}>
+                                    Expiry Date <SortIcon column="license_expiry" />
+                                </th>
+                                <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort("status")}>
+                                    Status <SortIcon column="status" />
+                                </th>
+                                <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider text-right print:hidden">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-[#2B3038]">
-                            {filteredDrivers.length === 0 ? (
+                        <tbody className="divide-y divide-border">
+                            {paginatedDrivers.length === 0 ? (
                                 <tr>
-                                    <td colSpan={9} className="px-6 py-12 text-center text-gray-500 text-sm">
-                                        No drivers found.
+                                    <td colSpan={9} className="px-6 py-12 text-center text-muted text-sm">
+                                        No drivers found matching your criteria.
                                     </td>
                                 </tr>
                             ) : (
-                                filteredDrivers.map((driver) => {
-                                    const expired = isExpired(driver.license_expiry);
-                                    // Dummy random percentages for UI showcase if backend doesn't provide them
-                                    const safety = driver.safety_score || Math.floor(Math.random() * 20 + 80);
-                                    const compl = driver.trip_completed || Math.floor(Math.random() * 20 + 80);
-
-                                    let safetyStatus = "Available";
-                                    if (safety < 85) safetyStatus = "Suspended";
-                                    else if (safety < 90) safetyStatus = "On Trip";
-
+                                paginatedDrivers.map((driver) => {
+                                    const isExpired = driver.license_expiry && new Date(driver.license_expiry) < new Date();
                                     return (
-                                        <tr key={driver.id} className="hover:bg-white/[0.02] transition-colors group">
-                                            <td className="px-6 py-4 text-sm font-semibold text-gray-200">{driver.name}</td>
-                                            <td className="px-6 py-4 text-sm text-gray-400">{driver.license_no}</td>
-                                            <td className="px-6 py-4 text-sm text-gray-400">{driver.license_category}</td>
-                                            <td className="px-6 py-4 text-sm text-gray-400">
-                                                <span className={expired ? "text-red-400 font-bold" : ""}>
-                                                    {formatDate(driver.license_expiry)} {expired && "EXPIRE"}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 text-sm text-gray-400">{driver.contact_no}</td>
-                                            <td className="px-6 py-4 text-sm text-gray-400">{compl}%</td>
-                                            <td className="px-6 py-4 text-sm">
-                                                <Badge status={safetyStatus}>{safetyStatus}</Badge>
-                                            </td>
-                                            <td className="px-6 py-4 text-sm">
-                                                <Badge status={driver.status}>{driver.status}</Badge>
-                                            </td>
-                                            <td className="px-6 py-4 text-sm text-right">
-                                                <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button 
-                                                        onClick={() => handleOpenDrawer("edit", driver)}
-                                                        className="p-1.5 text-gray-400 hover:text-blue-400 hover:bg-blue-400/10 rounded transition-colors"
-                                                        title="Edit Profile"
-                                                    >
-                                                        <HiOutlinePencil className="w-4 h-4" />
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => handleDelete(driver.id)}
-                                                        className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded transition-colors"
-                                                        title="Delete"
-                                                    >
-                                                        <HiOutlineTrash className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
+                                    <tr key={driver.id} className={`hover:bg-primary/[0.02] transition-colors group ${selectedIds.includes(driver.id) ? 'bg-accent/5' : ''}`}>
+                                        <td className="px-4 py-4 text-center print:hidden">
+                                            <input type="checkbox" checked={selectedIds.includes(driver.id)} onChange={() => toggleSelectOne(driver.id)} className="accent-accent cursor-pointer" />
+                                        </td>
+                                        <td className="px-6 py-4 text-sm font-semibold text-accent cursor-pointer hover:underline" onClick={() => handleOpenModal("details", driver)}>{driver.name}</td>
+                                        <td className="px-6 py-4 text-sm text-primary">{driver.license_number}</td>
+                                        <td className="px-6 py-4 text-sm text-secondary">{driver.license_category || "—"}</td>
+                                        <td className="px-6 py-4 text-sm text-secondary">{driver.contact_number || "—"}</td>
+                                        <td className="px-6 py-4 text-sm">
+                                            <span className={`px-2 py-1 rounded-md text-xs font-bold ${Number(driver.safety_score) >= 90 ? 'bg-success/10 text-success' : Number(driver.safety_score) >= 70 ? 'bg-warning/10 text-warning' : 'bg-danger/10 text-danger'}`}>
+                                                {driver.safety_score}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-sm">
+                                            <span className={isExpired ? 'text-danger font-semibold' : 'text-secondary'}>
+                                                {driver.license_expiry ? new Date(driver.license_expiry).toLocaleDateString() : "—"}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-sm">
+                                            <Badge status={isExpired ? "Suspended" : driver.status}>{isExpired ? "Expired" : driver.status}</Badge>
+                                        </td>
+                                        <td className="px-6 py-4 text-sm text-right print:hidden">
+                                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button onClick={() => handleOpenModal("details", driver)} className="p-1.5 text-muted hover:text-info hover:bg-info/10 rounded transition-colors" title="View Details">
+                                                    <HiOutlineDocumentReport className="w-4 h-4" />
+                                                </button>
+                                                <button onClick={() => handleOpenModal("edit", driver)} className="p-1.5 text-muted hover:text-accent hover:bg-accent/10 rounded transition-colors" title="Edit">
+                                                    <HiOutlinePencil className="w-4 h-4" />
+                                                </button>
+                                                <button onClick={() => handleDelete(driver.id)} className="p-1.5 text-muted hover:text-danger hover:bg-danger/10 rounded transition-colors" title="Delete">
+                                                    <HiOutlineTrash className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
                                     );
                                 })
                             )}
@@ -236,126 +348,149 @@ const Drivers = () => {
                     </table>
                 </div>
 
-                <div className="px-6 py-5 border-t border-[#2B3038] bg-[#15181D]">
-                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                        <div>
-                            <p className="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-3">Toggle Status</p>
-                            <div className="flex flex-wrap gap-2">
-                                {["All", "Available", "On Trip", "Off Duty", "Suspended"].map(status => (
-                                    <button 
-                                        key={status}
-                                        onClick={() => setStatusFilter(status)}
-                                        className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-all ${
-                                            statusFilter === status 
-                                            ? status === "Available" ? "bg-[#10B981] text-white shadow-[0_0_10px_rgba(16,185,129,0.3)]"
-                                            : status === "On Trip" ? "bg-[#3B82F6] text-white shadow-[0_0_10px_rgba(59,130,246,0.3)]"
-                                            : status === "Suspended" ? "bg-[#F59E0B] text-white shadow-[0_0_10px_rgba(245,158,11,0.3)]"
-                                            : status === "Off Duty" ? "bg-[#4B5563] text-white"
-                                            : "bg-[#C98A1C] text-[#111]"
-                                            : "bg-transparent border border-[#2B3038] text-gray-400 hover:border-gray-500"
-                                        }`}
-                                    >
-                                        {status}
-                                    </button>
-                                ))}
-                            </div>
+                {/* Pagination Footer */}
+                {totalPages > 1 && (
+                    <div className="px-6 py-4 border-t border-border bg-sidebar flex flex-col sm:flex-row items-center justify-between gap-4 print:hidden">
+                        <span className="text-xs text-secondary">
+                            Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, processedDrivers.length)} of {processedDrivers.length} entries
+                        </span>
+                        <div className="flex gap-2">
+                            <Button variant="secondary" className="px-3 py-1 text-xs" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Prev</Button>
+                            <span className="px-3 py-1 text-xs text-primary bg-border rounded-md border border-border">{currentPage} / {totalPages}</span>
+                            <Button variant="secondary" className="px-3 py-1 text-xs" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>Next</Button>
                         </div>
-                        <p className="text-xs text-[#C98A1C] font-medium max-w-sm text-right">
-                            Rule: Expired license or Suspended status → blocked from trip assignment
-                        </p>
                     </div>
-                </div>
+                )}
             </div>
 
-            {/* Profile Drawer */}
-            <Drawer 
-                isOpen={isDrawerOpen} 
-                onClose={() => setIsDrawerOpen(false)}
-                title={drawerMode === "create" ? "Add New Driver" : "Driver Profile"}
-            >
-                <form onSubmit={handleSubmit} className="flex flex-col gap-5 h-full">
+            {/* Create / Edit Modal */}
+            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={modalMode === "create" ? "Add New Driver" : "Edit Driver"}>
+                <form onSubmit={handleSubmit} className="flex flex-col gap-5">
                     {formError && (
-                        <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-sm p-3 rounded-lg">
-                            <span className="font-semibold">Error:</span> {formError}
+                        <div className="bg-danger/10 border border-danger/20 text-danger text-sm p-3 rounded-lg font-medium">
+                            {formError}
                         </div>
                     )}
                     
-                    <div className="space-y-4 flex-1">
-                        <Input 
-                            label="Driver Name" 
-                            name="name" 
-                            placeholder="e.g. Alex" 
-                            value={form.name} 
-                            onChange={handleChange} 
-                            required 
-                        />
-                        <Input 
-                            label="License No." 
-                            name="license_no" 
-                            placeholder="e.g. DL-88213" 
-                            value={form.license_no} 
-                            onChange={handleChange} 
-                            required 
-                        />
-                        <Select 
-                            label="License Category" 
-                            name="license_category" 
-                            value={form.license_category} 
-                            onChange={handleChange}
-                            options={[
-                                { label: "LMV", value: "LMV" },
-                                { label: "HMV", value: "HMV" },
-                                { label: "Commercial", value: "Commercial" }
-                            ]}
-                        />
-                        <Input 
-                            label="License Expiry" 
-                            name="license_expiry" 
-                            type="date" 
-                            value={form.license_expiry} 
-                            onChange={handleChange} 
-                            required
-                        />
-                        <Input 
-                            label="Contact No." 
-                            name="contact_no" 
-                            placeholder="e.g. 9876543210" 
-                            value={form.contact_no} 
-                            onChange={handleChange} 
-                            required
-                        />
-                        {drawerMode === "edit" && (
-                            <div className="pt-4 mt-4 border-t border-[#2B3038]">
-                                <Select 
-                                    label="Status (Suspend / Off Duty)" 
-                                    name="status" 
-                                    value={form.status} 
-                                    onChange={handleChange}
-                                    options={[
-                                        { label: "Available", value: "Available" },
-                                        { label: "On Trip", value: "On Trip" },
-                                        { label: "Off Duty", value: "Off Duty" },
-                                        { label: "Suspended", value: "Suspended" }
-                                    ]}
-                                />
-                                <p className="text-xs text-gray-500 mt-2">
-                                    Setting a driver to <strong>Suspended</strong> will immediately block them from active dispatching.
-                                </p>
-                            </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <Input label="Full Name" name="name" placeholder="e.g. John Doe" value={form.name} onChange={handleChange} required />
+                        <Input label="License No." name="license_number" placeholder="e.g. DL-12345678" value={form.license_number} onChange={handleChange} required error={formError.toLowerCase().includes("unique") ? "License number already exists" : ""} />
+                        <Select label="License Category" name="license_category" value={form.license_category} onChange={handleChange} options={[{ label: "Commercial", value: "Commercial" }, { label: "Heavy Duty", value: "Heavy Duty" }, { label: "Standard", value: "Standard" }]} />
+                        <Input label="License Expiry" name="license_expiry" type="date" value={form.license_expiry} onChange={handleChange} required />
+                        <Input label="Phone Number" name="contact_number" type="tel" placeholder="e.g. +1 234 567 8900" value={form.contact_number} onChange={handleChange} />
+                        <Input label="Safety Score" name="safety_score" type="number" min="0" max="100" value={form.safety_score} onChange={handleChange} />
+                        
+                        {modalMode === "edit" && (
+                            <Select label="Status" name="status" value={form.status} onChange={handleChange} options={[{ label: "Available", value: "Available" }, { label: "On Trip", value: "On Trip" }, { label: "Off Duty", value: "Off Duty" }, { label: "Suspended", value: "Suspended" }]} className="md:col-span-2" />
                         )}
                     </div>
 
-                    <div className="pt-6 mt-4 border-t border-[#2B3038] flex gap-3">
-                        <Button type="button" variant="secondary" onClick={() => setIsDrawerOpen(false)} className="flex-1">
-                            Cancel
-                        </Button>
-                        <Button type="submit" disabled={loading} className="flex-1">
-                            {loading ? "Saving..." : drawerMode === "create" ? "Add Driver" : "Save Profile"}
-                        </Button>
+                    <div className="flex items-center justify-end gap-3 mt-4 pt-5 border-t border-border">
+                        <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+                        <Button type="submit" disabled={loading}>{loading ? "Saving..." : modalMode === "create" ? "Add Driver" : "Save Changes"}</Button>
                     </div>
                 </form>
-            </Drawer>
+            </Modal>
 
+            {/* Driver Details Drawer */}
+            {selectedDriverDetails && (
+                <>
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity" onClick={() => setSelectedDriverDetails(null)}></div>
+                    <div className={`fixed inset-y-0 right-0 w-full max-w-md bg-sidebar border-l border-border shadow-2xl z-50 transform transition-transform duration-300 flex flex-col ${selectedDriverDetails ? 'translate-x-0' : 'translate-x-full'}`}>
+                        <div className="flex items-center justify-between px-6 py-5 border-b border-border shrink-0 bg-card">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-xl bg-accent/20 border border-accent/40 flex flex-shrink-0 items-center justify-center text-accent overflow-hidden">
+                                    <HiOutlineUser className="w-7 h-7" />
+                                </div>
+                                <div>
+                                    <h2 className="font-bold text-lg text-primary leading-tight">{selectedDriverDetails.name}</h2>
+                                    <p className="text-xs text-secondary font-medium mt-0.5">{selectedDriverDetails.email || "No email linked"}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setSelectedDriverDetails(null)} className="p-2 text-muted hover:text-primary bg-border/50 hover:bg-border rounded-full transition-colors">
+                                <HiX className="w-5 h-5" />
+                            </button>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
+                            <div className="space-y-4">
+                                <h3 className="text-[10px] font-bold text-muted uppercase tracking-widest border-b border-border pb-2">Status & Contact</h3>
+                                <div className="flex justify-between items-center bg-card p-4 rounded-xl border border-border">
+                                    <span className="text-sm text-secondary">Current Status</span>
+                                    <Badge status={selectedDriverDetails.status}>{selectedDriverDetails.status}</Badge>
+                                </div>
+                                <div className="bg-card p-4 rounded-xl border border-border">
+                                    <p className="text-xs text-muted mb-1">Phone Number</p>
+                                    <p className="text-sm font-semibold text-primary">{selectedDriverDetails.contact_number || "—"}</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <h3 className="text-[10px] font-bold text-muted uppercase tracking-widest border-b border-border pb-2">License Information</h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-card p-4 rounded-xl border border-border">
+                                        <p className="text-xs text-muted mb-1">License No.</p>
+                                        <p className="text-sm font-semibold text-primary">{selectedDriverDetails.license_number}</p>
+                                    </div>
+                                    <div className="bg-card p-4 rounded-xl border border-border">
+                                        <p className="text-xs text-muted mb-1">Category</p>
+                                        <p className="text-sm font-semibold text-primary">{selectedDriverDetails.license_category || "—"}</p>
+                                    </div>
+                                    <div className="bg-card p-4 rounded-xl border border-border col-span-2">
+                                        <p className="text-xs text-muted mb-1">Expiry Date</p>
+                                        <p className="text-sm font-semibold text-primary">
+                                            {selectedDriverDetails.license_expiry ? new Date(selectedDriverDetails.license_expiry).toLocaleDateString() : "—"}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="space-y-4">
+                                <h3 className="text-[10px] font-bold text-muted uppercase tracking-widest border-b border-border pb-2">Performance & Assignment</h3>
+                                <div className="flex justify-between items-center bg-card p-4 rounded-xl border border-border">
+                                    <span className="text-sm text-secondary">Safety Score</span>
+                                    <span className={`px-3 py-1 rounded-lg text-sm font-bold ${Number(selectedDriverDetails.safety_score) >= 90 ? 'bg-success/10 text-success' : Number(selectedDriverDetails.safety_score) >= 70 ? 'bg-warning/10 text-warning' : 'bg-danger/10 text-danger'}`}>
+                                        {selectedDriverDetails.safety_score} / 100
+                                    </span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-card p-4 rounded-xl border border-border">
+                                        <p className="text-xs text-muted mb-1">Trips Completed</p>
+                                        <p className="text-sm font-semibold text-primary">{selectedDriverDetails.trip_count || 0}</p>
+                                    </div>
+                                    <div className="bg-card p-4 rounded-xl border border-border">
+                                        <p className="text-xs text-muted mb-1">Assigned Vehicle</p>
+                                        <p className="text-sm font-semibold text-info">{selectedDriverDetails.assigned_vehicle || "None"}</p>
+                                    </div>
+                                </div>
+                                <div className="bg-card p-4 rounded-xl border border-border flex justify-between">
+                                    <div>
+                                        <p className="text-[10px] text-muted uppercase tracking-wider mb-1">Created At</p>
+                                        <p className="text-xs font-semibold text-secondary">{new Date(selectedDriverDetails.created_at || Date.now()).toLocaleDateString()}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[10px] text-muted uppercase tracking-wider mb-1">Updated At</p>
+                                        <p className="text-xs font-semibold text-secondary">{new Date(selectedDriverDetails.updated_at || Date.now()).toLocaleDateString()}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-4 border-t border-border bg-card shrink-0">
+                            <Button 
+                                className="w-full justify-center" 
+                                onClick={() => {
+                                    const driver = selectedDriverDetails;
+                                    setSelectedDriverDetails(null);
+                                    handleOpenModal("edit", driver);
+                                }}
+                            >
+                                Edit Driver Profile
+                            </Button>
+                        </div>
+                    </div>
+                </>
+            )}
         </div>
     );
 };

@@ -37,14 +37,14 @@ const ForgotPassword = () => {
                         <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-6">
                             <HiOutlineCheckCircle className="w-8 h-8 text-emerald-400" />
                         </div>
-                        <h2 className="text-2xl font-bold text-white mb-2">Check your email</h2>
-                        <p className="text-gray-500 text-sm mb-8 leading-relaxed">
+                        <h2 className="text-2xl font-bold text-primary mb-2">Check your email</h2>
+                        <p className="text-muted text-sm mb-8 leading-relaxed">
                             We've sent password reset instructions to<br/>
-                            <span className="font-medium text-gray-300">{email}</span>
+                            <span className="font-medium text-secondary">{email}</span>
                         </p>
                         <Link
                             to="/login"
-                            className="inline-flex items-center justify-center w-full py-3.5 rounded-xl font-semibold text-sm bg-white/[0.04] text-white hover:bg-white/[0.08] transition-colors border border-white/10"
+                            className="inline-flex items-center justify-center w-full py-3.5 rounded-xl font-semibold text-sm bg-white/[0.04] text-primary hover:bg-white/[0.08] transition-colors border border-white/10"
                         >
                             Return to log in
                         </Link>
@@ -52,19 +52,19 @@ const ForgotPassword = () => {
                 ) : (
                     <div>
                         <div className="mb-8">
-                            <h1 className="text-3xl font-bold text-white tracking-tight">Reset password</h1>
-                            <p className="text-gray-500 mt-2 text-sm">
+                            <h1 className="text-3xl font-bold text-primary tracking-tight">Reset password</h1>
+                            <p className="text-muted mt-2 text-sm">
                                 Enter your email address and we'll send you a link to reset your password.
                             </p>
                         </div>
 
                         <form onSubmit={handleSubmit} className="space-y-5">
                             <div>
-                                <label htmlFor="email" className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-widest">
+                                <label htmlFor="email" className="block text-xs font-medium text-secondary mb-2 uppercase tracking-widest">
                                     Email Address
                                 </label>
                                 <div className="relative">
-                                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500">
+                                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted">
                                         <HiOutlineMail className="w-5 h-5" />
                                     </span>
                                     <input
@@ -74,7 +74,7 @@ const ForgotPassword = () => {
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
                                         placeholder="you@company.com"
-                                        className="w-full pl-11 pr-4 py-3 rounded-xl text-sm text-white bg-white/[0.04] border border-white/10 focus:border-[#C98A1C] focus:outline-none transition-all duration-200"
+                                        className="w-full pl-11 pr-4 py-3 rounded-xl text-sm text-primary bg-white/[0.04] border border-white/10 focus:border-accent focus:outline-none transition-all duration-200"
                                     />
                                 </div>
                             </div>
@@ -87,8 +87,8 @@ const ForgotPassword = () => {
                                     "flex items-center justify-center gap-2",
                                     "transition-all duration-200",
                                     loading
-                                        ? "bg-[#C98A1C]/60 text-black/60 cursor-not-allowed"
-                                        : "bg-[#C98A1C] hover:bg-[#d59828] text-black shadow-lg shadow-[#C98A1C]/20",
+                                        ? "bg-accent/60 text-black/60 cursor-not-allowed"
+                                        : "bg-accent hover:bg-[#d59828] text-black shadow-lg shadow-[#C98A1C]/20",
                                 ].join(" ")}
                             >
                                 {loading ? "Sending..." : "Send reset link"}
@@ -98,7 +98,7 @@ const ForgotPassword = () => {
                         <div className="mt-8 text-center">
                             <Link
                                 to="/login"
-                                className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
+                                className="inline-flex items-center gap-2 text-sm text-secondary hover:text-primary transition-colors"
                             >
                                 <HiOutlineArrowLeft className="w-4 h-4" />
                                 Back to log in

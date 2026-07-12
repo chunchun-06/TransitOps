@@ -10,7 +10,9 @@ import {
     HiOutlineKey,
 } from "react-icons/hi";
 import { useAuth } from "../../context/AuthContext";
+import { useTheme } from "../../context/ThemeContext";
 import { logout as apiLogout } from "../../api/auth.api";
+import { HiOutlineSun, HiOutlineMoon, HiOutlineDesktopComputer } from "react-icons/hi";
 
 // ── Role badge colors ──────────────────────────────────────────────────────
 const ROLE_COLORS = {
@@ -44,7 +46,7 @@ const getInitials = (username = "") => {
 
 // ── Navbar ─────────────────────────────────────────────────────────────────
 const Navbar = () => {
-
+    const { theme, setTheme } = useTheme();
     const { user, signout } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
@@ -102,12 +104,12 @@ const Navbar = () => {
             <div className="flex items-center gap-6">
                 <div>
                     <h2
-                        className="text-lg font-bold text-white tracking-tight flex items-center gap-2"
+                        className="text-lg font-bold text-primary tracking-tight flex items-center gap-2"
                         aria-live="polite"
                     >
                         {getGreeting()}, {user?.username?.split(' ')[0] || 'User'}!
                     </h2>
-                    <p className="text-xs text-gray-500 mt-0.5">
+                    <p className="text-xs text-muted mt-0.5">
                         {pageTitle} • {new Date().toLocaleDateString("en-US", {
                             weekday: "long",
                             year: "numeric",
@@ -123,13 +125,48 @@ const Navbar = () => {
 
                 {/* Search Bar */}
                 <div className="hidden md:flex items-center relative">
-                    <HiOutlineSearch className="absolute left-3.5 w-4 h-4 text-gray-500" />
+                    <HiOutlineSearch className="absolute left-3.5 w-4 h-4 text-muted" />
                     <input
                         type="text"
                         placeholder="Search..."
-                        className="w-64 bg-[#1B1F24] border border-[#2B3038] text-sm text-white rounded-full pl-10 pr-4 py-2 focus:outline-none focus:border-[#C98A1C] transition-all"
+                        className="w-64 bg-card border border-border text-sm text-primary rounded-full pl-10 pr-4 py-2 focus:outline-none focus:border-accent transition-all"
                     />
                 </div>
+
+                {/* Theme Toggle */}
+                <button
+                    onClick={() => {
+                        if (theme === "Light") setTheme("Dark");
+                        else if (theme === "Dark") setTheme("System");
+                        else setTheme("Light");
+                    }}
+                    aria-label="Toggle Theme"
+                    style={{
+                        width: "38px",
+                        height: "38px",
+                        borderRadius: "10px",
+                        background: "var(--bg-card)",
+                        border: "1px solid var(--border-color)",
+                        color: "var(--text-muted)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                        transition: "all 0.2s",
+                    }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.color = "var(--text-primary)";
+                        e.currentTarget.style.borderColor = "var(--text-muted)";
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.color = "var(--text-muted)";
+                        e.currentTarget.style.borderColor = "var(--border-color)";
+                    }}
+                >
+                    {theme === "Light" ? <HiOutlineSun className="w-5 h-5 text-[#F59E0B]" /> : 
+                     theme === "Dark" ? <HiOutlineMoon className="w-5 h-5 text-gray-300" /> : 
+                     <HiOutlineDesktopComputer className="w-5 h-5" />}
+                </button>
 
                 {/* Bell */}
                 <button
@@ -273,10 +310,10 @@ const Navbar = () => {
                                         {initials}
                                     </div>
                                     <div>
-                                        <p className="text-sm font-semibold text-white">
+                                        <p className="text-sm font-semibold text-primary">
                                             {user?.username}
                                         </p>
-                                        <p className="text-xs text-gray-500 truncate max-w-[140px]">
+                                        <p className="text-xs text-muted truncate max-w-[140px]">
                                             {user?.email}
                                         </p>
                                     </div>

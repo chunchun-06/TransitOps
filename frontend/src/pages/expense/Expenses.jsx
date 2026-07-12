@@ -92,16 +92,16 @@ const Expenses = () => {
     };
 
     return (
-        <div className="animate-fade-in-up max-w-[1600px] mx-auto text-white">
+        <div className="animate-fade-in-up max-w-[1600px] mx-auto text-primary">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                 
                 {/* Left Side: Form */}
                 <div className="lg:col-span-4 space-y-6">
-                    <div className="bg-[#1B1F24] border border-[#2B3038] rounded-2xl p-6 shadow-sm">
-                        <h2 className="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-6">Log Expense</h2>
+                    <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
+                        <h2 className="text-[10px] uppercase tracking-widest text-muted font-bold mb-6">Log Expense</h2>
                         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
                             {errorMsg && (
-                                <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-sm p-3 rounded-lg">
+                                <div className="bg-danger/10 border border-red-500/20 text-danger text-sm p-3 rounded-lg">
                                     <span className="font-semibold">Error:</span> {errorMsg}
                                 </div>
                             )}
@@ -126,40 +126,40 @@ const Expenses = () => {
 
                 {/* Right Side: Log */}
                 <div className="lg:col-span-8 flex flex-col gap-6">
-                    <h2 className="text-[10px] uppercase tracking-widest text-gray-500 font-bold ml-1">Expense Log</h2>
-                    <div className="bg-[#1B1F24] border border-[#2B3038] rounded-2xl overflow-hidden shadow-sm">
+                    <h2 className="text-[10px] uppercase tracking-widest text-muted font-bold ml-1">Expense Log</h2>
+                    <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
                         <div className="overflow-x-auto">
                             <table className="w-full text-left border-collapse whitespace-nowrap">
                                 <thead>
-                                    <tr className="border-b border-[#2B3038] bg-[#15181D]">
-                                        <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Date</th>
-                                        <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Category</th>
-                                        <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Description</th>
-                                        <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Trip ID</th>
-                                        <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Amount</th>
-                                        <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
+                                    <tr className="border-b border-border bg-sidebar">
+                                        <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider">Date</th>
+                                        <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider">Category</th>
+                                        <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider">Description</th>
+                                        <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider">Trip ID</th>
+                                        <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider">Amount</th>
+                                        <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider text-right">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-[#2B3038]">
                                     {expenses.length === 0 ? (
                                         <tr>
-                                            <td colSpan={6} className="px-6 py-12 text-center text-gray-500 text-sm">No expenses found.</td>
+                                            <td colSpan={6} className="px-6 py-12 text-center text-muted text-sm">No expenses found.</td>
                                         </tr>
                                     ) : (
                                         expenses.map((exp) => (
-                                            <tr key={exp.id} className="hover:bg-white/[0.02] transition-colors group">
-                                                <td className="px-6 py-4 text-sm text-gray-400">{formatDate(exp.date)}</td>
+                                            <tr key={exp.id} className="hover:bg-primary/[0.02] transition-colors group">
+                                                <td className="px-6 py-4 text-sm text-secondary">{formatDate(exp.date)}</td>
                                                 <td className="px-6 py-4 text-sm">
-                                                    <span className="bg-[#4B5563] text-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md">
+                                                    <span className="bg-[#4B5563] text-primary px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md">
                                                         {exp.category}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 text-sm text-gray-300 font-medium">{exp.description || "—"}</td>
-                                                <td className="px-6 py-4 text-sm text-gray-400">{exp.trip_id ? `TR${String(exp.trip_id).padStart(3, '0')}` : "—"}</td>
-                                                <td className="px-6 py-4 text-sm text-gray-200 font-semibold">{formatCurrency(exp.amount)}</td>
+                                                <td className="px-6 py-4 text-sm text-secondary font-medium">{exp.description || "—"}</td>
+                                                <td className="px-6 py-4 text-sm text-secondary">{exp.trip_id ? `TR${String(exp.trip_id).padStart(3, '0')}` : "—"}</td>
+                                                <td className="px-6 py-4 text-sm text-primary font-semibold">{formatCurrency(exp.amount)}</td>
                                                 <td className="px-6 py-4 text-sm text-right">
                                                     <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <button onClick={() => handleDelete(exp.id)} className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded transition-colors" title="Delete">
+                                                        <button onClick={() => handleDelete(exp.id)} className="p-1.5 text-secondary hover:text-danger hover:bg-red-400/10 rounded transition-colors" title="Delete">
                                                             <HiOutlineTrash className="w-4 h-4" />
                                                         </button>
                                                     </div>

@@ -114,7 +114,7 @@ const Trips = () => {
     ];
 
     return (
-        <div className="animate-fade-in-up max-w-[1600px] mx-auto text-white">
+        <div className="animate-fade-in-up max-w-[1600px] mx-auto text-primary">
             
             {/* Split Layout */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -123,8 +123,8 @@ const Trips = () => {
                 <div className="lg:col-span-4 space-y-6">
                     
                     {/* Stepper */}
-                    <div className="bg-[#1B1F24] border border-[#2B3038] rounded-2xl p-6 shadow-sm">
-                        <h2 className="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-6">Trip Lifecycle</h2>
+                    <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
+                        <h2 className="text-[10px] uppercase tracking-widest text-muted font-bold mb-6">Trip Lifecycle</h2>
                         <div className="flex items-center justify-between relative">
                             {/* Connecting Line */}
                             <div className="absolute top-1/2 left-0 w-full h-[2px] bg-[#2B3038] -translate-y-1/2 z-0"></div>
@@ -147,12 +147,12 @@ const Trips = () => {
                     </div>
 
                     {/* Dispatch Form */}
-                    <div className="bg-[#1B1F24] border border-[#2B3038] rounded-2xl p-6 shadow-sm">
-                        <h2 className="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-6">Create Trip</h2>
+                    <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
+                        <h2 className="text-[10px] uppercase tracking-widest text-muted font-bold mb-6">Create Trip</h2>
                         
                         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
                             {errorMsg && (
-                                <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-sm p-3 rounded-lg">
+                                <div className="bg-danger/10 border border-red-500/20 text-danger text-sm p-3 rounded-lg">
                                     <span className="font-semibold">Error:</span> {errorMsg}
                                 </div>
                             )}
@@ -209,12 +209,12 @@ const Trips = () => {
 
                             {/* Validation Block */}
                             {isOverweight && (
-                                <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl mt-2 animate-fade-in">
-                                    <p className="text-red-400 text-sm font-medium leading-relaxed">
-                                        Vehicle Capacity: <span className="text-white">{capacity} kg</span><br />
-                                        Cargo Weight: <span className="text-white">{weight} kg</span><br />
+                                <div className="bg-danger/10 border border-red-500/20 p-4 rounded-xl mt-2 animate-fade-in">
+                                    <p className="text-danger text-sm font-medium leading-relaxed">
+                                        Vehicle Capacity: <span className="text-primary">{capacity} kg</span><br />
+                                        Cargo Weight: <span className="text-primary">{weight} kg</span><br />
                                     </p>
-                                    <div className="text-red-400 text-sm font-bold flex items-center gap-1.5 mt-2 pt-2 border-t border-red-500/20">
+                                    <div className="text-danger text-sm font-bold flex items-center gap-1.5 mt-2 pt-2 border-t border-red-500/20">
                                         <HiX className="w-4 h-4" /> Capacity exceeded by {overAmount} kg — dispatch blocked
                                     </div>
                                 </div>
@@ -243,11 +243,11 @@ const Trips = () => {
 
                 {/* Right Side: Live Board */}
                 <div className="lg:col-span-8 flex flex-col gap-6">
-                    <h2 className="text-[10px] uppercase tracking-widest text-gray-500 font-bold ml-1">Live Board</h2>
+                    <h2 className="text-[10px] uppercase tracking-widest text-muted font-bold ml-1">Live Board</h2>
                     
                     {trips.length === 0 ? (
-                        <div className="bg-[#1B1F24] border border-[#2B3038] rounded-2xl p-12 flex flex-col items-center justify-center text-center shadow-sm">
-                            <p className="text-gray-400 text-sm">No active trips found.</p>
+                        <div className="bg-card border border-border rounded-2xl p-12 flex flex-col items-center justify-center text-center shadow-sm">
+                            <p className="text-secondary text-sm">No active trips found.</p>
                             <p className="text-gray-600 text-xs mt-1">Create a trip from the left panel to see it here.</p>
                         </div>
                     ) : (
@@ -259,22 +259,22 @@ const Trips = () => {
                                 const dName = d ? d.name.toUpperCase() : "UNASSIGNED";
                                 
                                 return (
-                                    <div key={trip.id} className="bg-[#1B1F24] border border-[#2B3038] hover:border-[#4b5563] rounded-2xl p-5 shadow-sm transition-colors flex flex-col gap-4 relative overflow-hidden group">
+                                    <div key={trip.id} className="bg-card border border-border hover:border-[#4b5563] rounded-2xl p-5 shadow-sm transition-colors flex flex-col gap-4 relative overflow-hidden group">
                                         
                                         {/* Colored Left Accent line */}
-                                        <div className={`absolute left-0 top-0 bottom-0 w-1 ${trip.status === "Dispatched" ? "bg-[#3B82F6]" : trip.status === "Draft" ? "bg-[#4B5563]" : trip.status === "Cancelled" ? "bg-[#F87171]" : "bg-[#10B981]"}`}></div>
+                                        <div className={`absolute left-0 top-0 bottom-0 w-1 ${trip.status === "Dispatched" ? "bg-info" : trip.status === "Draft" ? "bg-[#4B5563]" : trip.status === "Cancelled" ? "bg-[#F87171]" : "bg-success"}`}></div>
 
                                         <div className="flex justify-between items-start ml-2">
                                             <div className="flex flex-col">
-                                                <span className="text-gray-300 font-bold text-sm tracking-wide">TR{String(trip.id).padStart(3, '0')}</span>
-                                                <div className="flex items-center gap-2 text-gray-400 text-sm mt-1.5 font-medium">
+                                                <span className="text-secondary font-bold text-sm tracking-wide">TR{String(trip.id).padStart(3, '0')}</span>
+                                                <div className="flex items-center gap-2 text-secondary text-sm mt-1.5 font-medium">
                                                     <span>{trip.source}</span>
-                                                    <HiOutlineArrowRight className="w-3.5 h-3.5 text-[#C98A1C]" />
+                                                    <HiOutlineArrowRight className="w-3.5 h-3.5 text-accent" />
                                                     <span>{trip.destination}</span>
                                                 </div>
                                             </div>
                                             <div className="flex flex-col items-end">
-                                                <span className="text-gray-400 text-xs font-semibold tracking-wider">
+                                                <span className="text-secondary text-xs font-semibold tracking-wider">
                                                     {vName} / {dName}
                                                 </span>
                                             </div>
@@ -282,7 +282,7 @@ const Trips = () => {
 
                                         <div className="flex justify-between items-end ml-2 mt-2">
                                             <Badge status={trip.status}>{trip.status}</Badge>
-                                            <span className="text-gray-500 text-xs font-medium">
+                                            <span className="text-muted text-xs font-medium">
                                                 {trip.status === "Dispatched" ? "45 min ETA" : trip.status === "Draft" ? "Awaiting driver" : trip.status === "Cancelled" ? "Vehicle went to shop" : "—"}
                                             </span>
                                         </div>
@@ -293,7 +293,7 @@ const Trips = () => {
                     )}
 
                     <div className="mt-4 p-4">
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-muted">
                             On Complete: odometer <HiOutlineArrowRight className="inline w-3 h-3 text-gray-600" /> Fuel log <HiOutlineArrowRight className="inline w-3 h-3 text-gray-600" /> expenses <HiOutlineArrowRight className="inline w-3 h-3 text-gray-600" /> Vehicle & Driver Available
                         </p>
                     </div>
