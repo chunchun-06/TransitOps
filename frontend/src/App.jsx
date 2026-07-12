@@ -1,7 +1,7 @@
-import AppRoutes from "./routes/AppRoutes";
+import VehiclePage from "./pages/vehicle/VehiclePage";
 
 function App() {
-    return <AppRoutes />;
+    return <VehiclePage />;
 }
 
 export default App;

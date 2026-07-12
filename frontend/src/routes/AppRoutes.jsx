@@ -99,6 +99,20 @@ const AppRoutes = () => {
                 {/* 404 fallback */}
                 <Route path="*" element={<NotFound />} />
 
+                <Route
+                    path="/vehicles"
+                    element={
+                        <ProtectedRoute>
+                            <VehiclePage />
+                        </ProtectedRoute>
+                    }
+                />
+
+                <Route
+                    path="*"
+                    element={<Navigate to="/login" replace />}
+                />
+
             </Routes>
         </BrowserRouter>
     );
