@@ -1,6 +1,7 @@
 const db = require("../config/db");
 const { comparePassword } = require("../utils/hash");
 const { generateToken } = require("../utils/jwt");
+const ApiError = require("../utils/error");
 
 const login = async (email, password) => {
     const query = `
@@ -30,7 +31,10 @@ const login = async (email, password) => {
     );
 
     if (!isMatch) {
-        throw new Error("Invalid email or password");
+        throw new ApiError(
+            401,
+            "Invalid email or password"
+        );
     }
 
     const token = generateToken({
@@ -64,7 +68,10 @@ const getCurrentUser = async (id) => {
     const { rows } = await db.query(query, [id]);
 
     if (rows.length === 0) {
-        throw new Error("User not found");
+        throw new ApiError(
+            404,
+            "User not found"
+        );
     }
 
     return rows[0];
