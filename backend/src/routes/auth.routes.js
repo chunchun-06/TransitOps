@@ -1,6 +1,8 @@
 const express = require("express");
 const router = express.Router();
-
+const {
+    changePasswordSchema
+} = require("../validators/auth.validator");
 const authController = require("../controllers/auth.controller");
 
 const authenticate = require("../middlewares/auth.middleware");
@@ -19,6 +21,13 @@ router.post(
     "/logout",
     authenticate,
     authController.logout
+);
+
+router.put(
+    "/change-password",
+    authenticate,
+    validate(changePasswordSchema),
+    authController.changePassword
 );
 router.get(
     "/me",

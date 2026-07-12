@@ -10,8 +10,7 @@ const authenticate = (req, res, next) => {
         });
     }
 
-    const token = authHeader.split(" ")[1];
-
+const token = authHeader.substring(7);
     try {
 
         const decoded = jwt.verify(
