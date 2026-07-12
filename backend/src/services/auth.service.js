@@ -1,7 +1,7 @@
-const db = require("../config/db");
-const { comparePassword } = require("../utils/hash");
 const { generateToken } = require("../utils/jwt");
 const ApiError = require("../utils/error");
+const { hashPassword, comparePassword } = require("../utils/hash");
+const db = require("../config/db");
 
 const login = async (email, password) => {
     const query = `
@@ -45,10 +45,10 @@ const login = async (email, password) => {
 
     delete user.password_hash;
 
-    return {
-        token,
-        user,
-    };
+return {
+    accessToken: token,
+    user,
+};
 };
 
 const getCurrentUser = async (id) => {
@@ -76,8 +76,53 @@ const getCurrentUser = async (id) => {
 
     return rows[0];
 };
+const changePassword = async (
+    userId,
+    currentPassword,
+    newPassword
+) => {
 
+    const { rows } = await db.query(
+        `
+        SELECT password_hash
+        FROM users
+        WHERE id = $1
+        `,
+        [userId]
+    );
+
+    if (!rows.length) {
+        throw new ApiError(404, "User not found");
+    }
+
+    const valid = await comparePassword(
+        currentPassword,
+        rows[0].password_hash
+    );
+
+    if (!valid) {
+        throw new ApiError(
+            400,
+            "Current password is incorrect"
+        );
+    }
+
+    const hashed = await hashPassword(newPassword);
+
+    await db.query(
+        `
+        UPDATE users
+        SET password_hash = $1,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2
+        `,
+        [hashed, userId]
+    );
+
+    return null;
+};
 module.exports = {
     login,
     getCurrentUser,
+    changePassword,
 };
