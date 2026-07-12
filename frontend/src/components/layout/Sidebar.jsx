@@ -95,8 +95,8 @@ const Sidebar = () => {
         <aside
             style={{
                 width: collapsed ? "72px" : "256px",
-                background: "#111111",
-                borderRight: "1px solid rgba(255,255,255,0.06)",
+                background: "#15181D",
+                borderRight: "1px solid #2B3038",
                 display: "flex",
                 flexDirection: "column",
                 transition: "width 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
@@ -110,7 +110,7 @@ const Sidebar = () => {
             <div
                 style={{
                     padding: collapsed ? "20px 18px" : "20px 20px",
-                    borderBottom: "1px solid rgba(255,255,255,0.06)",
+                    borderBottom: "1px solid #2B3038",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: collapsed ? "center" : "space-between",
@@ -126,8 +126,8 @@ const Sidebar = () => {
                             width: "28px",
                             height: "28px",
                             borderRadius: "8px",
-                            background: "rgba(255,255,255,0.05)",
-                            border: "1px solid rgba(255,255,255,0.08)",
+                            background: "#1B1F24",
+                            border: "1px solid #2B3038",
                             color: "#6b7280",
                             display: "flex",
                             alignItems: "center",
@@ -141,9 +141,9 @@ const Sidebar = () => {
                             e.currentTarget.style.borderColor = "rgba(201,138,28,0.3)";
                         }}
                         onMouseLeave={(e) => {
-                            e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                            e.currentTarget.style.background = "#1B1F24";
                             e.currentTarget.style.color = "#6b7280";
-                            e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
+                            e.currentTarget.style.borderColor = "#2B3038";
                         }}
                         aria-label="Collapse sidebar"
                     >
@@ -161,8 +161,8 @@ const Sidebar = () => {
                         width: "36px",
                         height: "28px",
                         borderRadius: "8px",
-                        background: "rgba(255,255,255,0.05)",
-                        border: "1px solid rgba(255,255,255,0.08)",
+                        background: "#1B1F24",
+                        border: "1px solid #2B3038",
                         color: "#6b7280",
                         display: "flex",
                         alignItems: "center",
@@ -176,9 +176,9 @@ const Sidebar = () => {
                         e.currentTarget.style.borderColor = "rgba(201,138,28,0.3)";
                     }}
                     onMouseLeave={(e) => {
-                        e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                        e.currentTarget.style.background = "#1B1F24";
                         e.currentTarget.style.color = "#6b7280";
-                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
+                        e.currentTarget.style.borderColor = "#2B3038";
                     }}
                     aria-label="Expand sidebar"
                 >
@@ -302,7 +302,7 @@ const Sidebar = () => {
                 style={{
                     height: "1px",
                     margin: "0 16px",
-                    background: "rgba(255,255,255,0.05)",
+                    background: "#2B3038",
                 }}
             />
 

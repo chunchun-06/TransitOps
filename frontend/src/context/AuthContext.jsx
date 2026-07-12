@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback } from "react";
+/* eslint-disable react-refresh/only-export-components */
 
 const AuthContext = createContext(null);
 

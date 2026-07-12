@@ -1,5 +1,4 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-
 import Login         from "../pages/auth/Login";
 import ForgotPassword from "../pages/auth/ForgotPassword";
 import Dashboard     from "../pages/dashboard/Dashboard";
@@ -8,9 +7,7 @@ import ProtectedRoute  from "../components/auth/ProtectedRoute";
 import RoleGuard       from "../components/auth/RoleGuard";
 import Unauthorized    from "../pages/auth/Unauthorized";
 import NotFound        from "../pages/NotFound";
-
-// Feature pages
-import Vehicles    from "../pages/vehicle/Vehicles";
+import Vehicles    from "../pages/vehicle/VehiclePage";
 import Drivers     from "../pages/driver/Drivers";
 import Trips       from "../pages/trip/Trips";
 import Maintenance from "../pages/maintenance/Maintenance";
@@ -98,6 +95,13 @@ const AppRoutes = () => {
 
                 {/* 404 fallback */}
                 <Route path="*" element={<NotFound />} />
+
+
+
+                <Route
+                    path="*"
+                    element={<Navigate to="/login" replace />}
+                />
 
             </Routes>
         </BrowserRouter>
