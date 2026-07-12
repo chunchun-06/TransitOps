@@ -171,17 +171,15 @@ const LoginForm = () => {
     const showError = (field) => touched[field] && fieldErrors[field];
 
     const inputBase = [
-        "w-full h-12 pl-11 pr-4 rounded-xl text-sm text-primary",
-        "bg-[#111111]/50 backdrop-blur-sm border transition-all duration-200",
-        "placeholder-gray-600 focus:outline-none focus:ring-0",
-        "input-gold",
+        "form-input w-full h-12 pl-11 pr-4 rounded-xl text-sm transition-all duration-200",
+        "focus:outline-none",
     ].join(" ");
 
     const inputClass = (field) => [
         inputBase,
         showError(field)
-            ? "border-red-500/50 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(239,68,68,0.15)]"
-            : "border-white/10 hover:border-white/20",
+            ? "!border-red-500 focus:!border-red-500 focus:!ring-red-500"
+            : "",
     ].join(" ");
 
     // ── Render ──────────────────────────────────────────────────────────────

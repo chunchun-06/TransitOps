@@ -1,26 +1,7 @@
 import api from "./axios";
 
-export const getMaintenanceLogs = async () => {
-    const response = await api.get("/maintenance");
-    return response.data;
-};
-
-export const createMaintenanceLog = async (logData) => {
-    const response = await api.post("/maintenance", logData);
-    return response.data;
-};
-
-export const updateMaintenanceLog = async (id, logData) => {
-    const response = await api.put(`/maintenance/${id}`, logData);
-    return response.data;
-};
-
-export const updateMaintenanceStatus = async (id, status) => {
-    const response = await api.patch(`/maintenance/${id}/status`, { status });
-    return response.data;
-};
-
-export const deleteMaintenanceLog = async (id) => {
-    const response = await api.delete(`/maintenance/${id}`);
-    return response.data;
-};
+export const getMaintenanceLogs = () => api.get("/maintenance");
+export const createMaintenanceLog = (logData) => api.post("/maintenance", logData);
+export const updateMaintenanceLog = (id, logData) => api.put(`/maintenance/${id}`, logData);
+export const updateMaintenanceStatus = (id, status) => api.patch(`/maintenance/${id}/status`, { status });
+export const deleteMaintenanceLog = (id) => api.delete(`/maintenance/${id}`);

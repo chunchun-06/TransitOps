@@ -52,7 +52,7 @@ const Expenses = () => {
             
             const payload = {
                 ...form,
-                trip_id: form.trip_id ? Number(form.trip_id) : null,
+                trip_id: form.trip_id ? form.trip_id : null,
                 amount: Number(form.amount),
             };
 
@@ -79,7 +79,7 @@ const Expenses = () => {
 
     const tripOptions = [
         { label: "None (General Operation)", value: "" },
-        ...trips.map(t => ({ label: `TR${String(t.id).padStart(3, '0')} - ${t.source} to ${t.destination}`, value: t.id }))
+        ...trips.map(t => ({ label: `TR-${String(t.id).substring(0,5).toUpperCase()} - ${t.source} to ${t.destination}`, value: t.id }))
     ];
 
     const categoryOptions = CATEGORIES.map(c => ({ label: c, value: c }));
@@ -155,7 +155,7 @@ const Expenses = () => {
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 text-sm text-secondary font-medium">{exp.description || "—"}</td>
-                                                <td className="px-6 py-4 text-sm text-secondary">{exp.trip_id ? `TR${String(exp.trip_id).padStart(3, '0')}` : "—"}</td>
+                                                <td className="px-6 py-4 text-sm text-secondary">{exp.trip_id ? `TR-${String(exp.trip_id).substring(0,5).toUpperCase()}` : "—"}</td>
                                                 <td className="px-6 py-4 text-sm text-primary font-semibold">{formatCurrency(exp.amount)}</td>
                                                 <td className="px-6 py-4 text-sm text-right">
                                                     <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">

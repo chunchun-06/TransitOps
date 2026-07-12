@@ -230,7 +230,7 @@ const Drivers = () => {
                     <Select value={statusFilter} onChange={(e) => {setStatusFilter(e.target.value); setCurrentPage(1);}} options={[{ label: "Status: All", value: "All" }, { label: "Available", value: "Available" }, { label: "On Trip", value: "On Trip" }, { label: "Off Duty", value: "Off Duty" }, { label: "Suspended", value: "Suspended" }]} className="w-[140px]" />
                     <div className="relative flex-1 min-w-[200px]">
                         <HiOutlineSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted w-4 h-4" />
-                        <input type="text" placeholder="Search name or license..." value={searchTerm} onChange={(e) => {setSearchTerm(e.target.value); setCurrentPage(1);}} className="bg-main border border-border text-sm text-primary rounded-lg pl-10 pr-4 py-2.5 outline-none focus:border-accent transition-colors w-full placeholder-gray-500" />
+                        <input type="text" placeholder="Search name or license..." value={searchTerm} onChange={(e) => {setSearchTerm(e.target.value); setCurrentPage(1);}} className="form-input border text-sm rounded-lg pl-10 pr-4 py-2.5 outline-none transition-colors w-full" />
                     </div>
                 </div>
 
@@ -249,7 +249,7 @@ const Drivers = () => {
                         <select 
                             value={bulkStatus}
                             onChange={(e) => setBulkStatus(e.target.value)}
-                            className="bg-card border border-border text-sm text-primary rounded-lg px-3 py-1.5 focus:border-accent outline-none"
+                            className="form-input border text-sm rounded-lg px-3 py-1.5 outline-none"
                         >
                             <option value="">Change Status...</option>
                             <option value="Available">Available</option>

@@ -71,7 +71,7 @@ const Maintenance = () => {
             
             const payload = {
                 ...form,
-                vehicle_id: Number(form.vehicle_id),
+                vehicle_id: form.vehicle_id,
                 cost: Number(form.cost || 0),
             };
 

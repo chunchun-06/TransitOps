@@ -131,7 +131,7 @@ const Reports = () => {
                 
                 <div className="flex items-center gap-3">
                     <select 
-                        className="bg-background border border-border text-secondary text-sm rounded-lg px-4 py-2.5 focus:outline-none focus:border-accent transition-all shadow-sm appearance-none cursor-pointer"
+                        className="form-input border text-sm rounded-lg px-4 py-2 outline-none appearance-none cursor-pointer"
                         value={period}
                         onChange={(e) => setPeriod(e.target.value)}
                     >

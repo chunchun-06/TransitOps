@@ -141,6 +141,47 @@
   .nav-glow {
     box-shadow: 0 0 20px rgba(201, 138, 28, 0.15);
   }
+  .form-input {
+    background-color: #FFFFFF;
+    color: #111827;
+    border-color: #D1D5DB;
+    caret-color: #111827;
+  }
+  .form-input::placeholder {
+    color: #6B7280;
+  }
+  .form-input:focus {
+    border-color: #D4A017;
+    box-shadow: 0 0 0 1px #D4A017;
+  }
+  .form-input:-webkit-autofill,
+  .form-input:-webkit-autofill:hover, 
+  .form-input:-webkit-autofill:focus, 
+  .form-input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 1000px #FFFFFF inset !important;
+    -webkit-text-fill-color: #111827 !important;
+  }
+
+  .dark .form-input {
+    background-color: #111827;
+    color: #F9FAFB;
+    border-color: #374151;
+    caret-color: #F9FAFB;
+  }
+  .dark .form-input::placeholder {
+    color: #9CA3AF;
+  }
+  .dark .form-input:focus {
+    border-color: #D4A017;
+    box-shadow: 0 0 0 1px #D4A017;
+  }
+  .dark .form-input:-webkit-autofill,
+  .dark .form-input:-webkit-autofill:hover, 
+  .dark .form-input:-webkit-autofill:focus, 
+  .dark .form-input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 1000px #111827 inset !important;
+    -webkit-text-fill-color: #F9FAFB !important;
+  }
 }
 
 @keyframes spin {

@@ -54,8 +54,8 @@ const Fuel = () => {
             
             const payload = {
                 ...form,
-                vehicle_id: Number(form.vehicle_id),
-                trip_id: form.trip_id ? Number(form.trip_id) : null,
+                vehicle_id: form.vehicle_id,
+                trip_id: form.trip_id ? form.trip_id : null,
                 fuel_amount: Number(form.fuel_amount),
                 cost: Number(form.cost),
             };
@@ -88,7 +88,7 @@ const Fuel = () => {
 
     const tripOptions = [
         { label: "None (General Fill-up)", value: "" },
-        ...trips.map(t => ({ label: `TR${String(t.id).padStart(3, '0')} - ${t.source} to ${t.destination}`, value: t.id }))
+        ...trips.map(t => ({ label: `TR-${String(t.id).substring(0,5).toUpperCase()} - ${t.source} to ${t.destination}`, value: t.id }))
     ];
 
     const formatCurrency = (val) => val ? Number(val).toLocaleString() : "—";
@@ -157,7 +157,7 @@ const Fuel = () => {
                                             return (
                                                 <tr key={log.id} className="hover:bg-primary/[0.02] transition-colors group">
                                                     <td className="px-6 py-4 text-sm font-semibold text-primary">{v?.registration_no || "—"}</td>
-                                                    <td className="px-6 py-4 text-sm text-secondary">{log.trip_id ? `TR${String(log.trip_id).padStart(3, '0')}` : "—"}</td>
+                                                    <td className="px-6 py-4 text-sm text-secondary">{log.trip_id ? `TR-${String(log.trip_id).substring(0,5).toUpperCase()}` : "—"}</td>
                                                     <td className="px-6 py-4 text-sm text-secondary">{log.fuel_amount} L</td>
                                                     <td className="px-6 py-4 text-sm text-secondary">{formatCurrency(log.cost)}</td>
                                                     <td className="px-6 py-4 text-sm text-secondary">{formatDate(log.date)}</td>

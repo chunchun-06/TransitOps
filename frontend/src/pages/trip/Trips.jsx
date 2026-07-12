@@ -71,11 +71,11 @@ const Trips = () => {
             
             const payload = {
                 ...form,
-                vehicle_id: Number(form.vehicle_id),
-                driver_id: Number(form.driver_id),
+                vehicle_id: form.vehicle_id,
+                driver_id: form.driver_id,
                 cargo_weight: Number(form.cargo_weight),
                 planned_distance: Number(form.planned_distance || 0),
-                status: "Dispatched" // Defaults to dispatched on creation in this UI
+                status: "Dispatched"
             };
 
             await createTrip(payload);
@@ -266,7 +266,7 @@ const Trips = () => {
 
                                         <div className="flex justify-between items-start ml-2">
                                             <div className="flex flex-col">
-                                                <span className="text-secondary font-bold text-sm tracking-wide">TR{String(trip.id).padStart(3, '0')}</span>
+                                                <span className="text-secondary font-bold text-sm tracking-wide">TR-{String(trip.id).substring(0,5).toUpperCase()}</span>
                                                 <div className="flex items-center gap-2 text-secondary text-sm mt-1.5 font-medium">
                                                     <span>{trip.source}</span>
                                                     <HiOutlineArrowRight className="w-3.5 h-3.5 text-accent" />
@@ -280,25 +280,44 @@ const Trips = () => {
                                             </div>
                                         </div>
 
-                                        <div className="flex justify-between items-end ml-2 mt-2">
-                                            <Badge status={trip.status}>{trip.status}</Badge>
+                                    <div className="flex justify-between items-end ml-2 mt-2">
+                                        <Badge status={trip.status}>{trip.status}</Badge>
+                                        
+                                        {trip.status === "Dispatched" && (
+                                            <div className="flex gap-2">
+                                                <Button variant="outline" className="px-2 py-1 text-xs" onClick={async () => {
+                                                    try {
+                                                        await import('../../api/trip.api').then(m => m.updateTrip(trip.id, { ...trip, status: "Cancelled" }));
+                                                        fetchData();
+                                                    } catch (e) { alert("Failed to cancel trip"); }
+                                                }}>Cancel</Button>
+                                                <Button className="px-2 py-1 text-xs" onClick={async () => {
+                                                    try {
+                                                        await import('../../api/trip.api').then(m => m.updateTrip(trip.id, { ...trip, status: "Completed" }));
+                                                        fetchData();
+                                                    } catch (e) { alert("Failed to complete trip"); }
+                                                }}>Complete</Button>
+                                            </div>
+                                        )}
+                                        {trip.status !== "Dispatched" && (
                                             <span className="text-muted text-xs font-medium">
-                                                {trip.status === "Dispatched" ? "45 min ETA" : trip.status === "Draft" ? "Awaiting driver" : trip.status === "Cancelled" ? "Vehicle went to shop" : "—"}
+                                                {trip.status === "Draft" ? "Awaiting driver" : trip.status === "Cancelled" ? "Vehicle went to shop" : "—"}
                                             </span>
-                                        </div>
+                                        )}
                                     </div>
-                                );
-                            })}
-                        </div>
-                    )}
-
-                    <div className="mt-4 p-4">
-                        <p className="text-xs text-muted">
-                            On Complete: odometer <HiOutlineArrowRight className="inline w-3 h-3 text-gray-600" /> Fuel log <HiOutlineArrowRight className="inline w-3 h-3 text-gray-600" /> expenses <HiOutlineArrowRight className="inline w-3 h-3 text-gray-600" /> Vehicle & Driver Available
-                        </p>
+                                </div>
+                            );
+                        })}
                     </div>
+                )}
 
+                <div className="mt-4 p-4">
+                    <p className="text-xs text-muted">
+                        On Complete/Cancel: Vehicle & Driver statuses are automatically restored to Available.
+                    </p>
                 </div>
+
+            </div>
 
             </div>
         </div>

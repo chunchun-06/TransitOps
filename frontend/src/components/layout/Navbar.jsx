@@ -129,7 +129,7 @@ const Navbar = () => {
                     <input
                         type="text"
                         placeholder="Search..."
-                        className="w-64 bg-card border border-border text-sm text-primary rounded-full pl-10 pr-4 py-2 focus:outline-none focus:border-accent transition-all"
+                        className="form-input w-64 border text-sm rounded-full pl-10 pr-4 py-2 focus:outline-none transition-all"
                     />
                 </div>
 

@@ -15,7 +15,7 @@ const ChangePassword = () => {
         }, 1000);
     };
 
-    const inputClass = "w-full pl-11 pr-4 py-3 rounded-xl text-sm text-primary bg-white/[0.04] border border-white/10 focus:border-accent focus:outline-none transition-all duration-200";
+    const inputClass = "form-input w-full pl-11 pr-4 py-3 rounded-xl text-sm transition-all duration-200";
 
     return (
         <div className="max-w-2xl animate-fade-in-up">

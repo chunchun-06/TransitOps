@@ -44,19 +44,19 @@ const Dashboard = () => {
                 <span className="text-xs text-muted uppercase tracking-widest font-semibold flex items-center gap-1.5 mr-2">
                     <HiOutlineFilter className="w-4 h-4" /> Filters
                 </span>
-                <select className="bg-card border border-border text-secondary text-sm rounded-lg px-4 py-2 focus:outline-none focus:border-accent transition-colors cursor-pointer appearance-none min-w-[160px]">
+                <select className="form-input border text-sm rounded-lg px-4 py-2 outline-none appearance-none cursor-pointer min-w-[160px]">
                     <option>Vehicle Type: All</option>
                     <option>Van</option>
                     <option>Truck</option>
                     <option>Mini</option>
                 </select>
-                <select className="bg-card border border-border text-secondary text-sm rounded-lg px-4 py-2 focus:outline-none focus:border-accent transition-colors cursor-pointer appearance-none min-w-[160px]">
+                <select className="form-input border text-sm rounded-lg px-4 py-2 outline-none appearance-none cursor-pointer min-w-[160px]">
                     <option>Status: All</option>
                     <option>Available</option>
                     <option>On Trip</option>
                     <option>In Shop</option>
                 </select>
-                <select className="bg-card border border-border text-secondary text-sm rounded-lg px-4 py-2 focus:outline-none focus:border-accent transition-colors cursor-pointer appearance-none min-w-[160px]">
+                <select className="form-input border text-sm rounded-lg px-4 py-2 outline-none appearance-none cursor-pointer min-w-[160px]">
                     <option>Region: All</option>
                     <option>North</option>
                     <option>South</option>
