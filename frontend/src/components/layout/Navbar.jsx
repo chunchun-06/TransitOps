@@ -88,8 +88,8 @@ const Navbar = () => {
         <header
             style={{
                 height: "64px",
-                background: "#15181D",
-                borderBottom: "1px solid #2B3038",
+                background: "#111111",
+                borderBottom: "1px solid rgba(255,255,255,0.06)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
