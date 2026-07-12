@@ -364,8 +364,18 @@ const Drivers = () => {
             </div>
 
             {/* Create / Edit Modal */}
-            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={modalMode === "create" ? "Add New Driver" : "Edit Driver"}>
-                <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+            <Modal 
+                isOpen={isModalOpen} 
+                onClose={() => setIsModalOpen(false)} 
+                title={modalMode === "create" ? "Add New Driver" : "Edit Driver"}
+                footer={
+                    <div className="flex items-center justify-end gap-3 w-full">
+                        <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+                        <Button type="submit" form="driver-form" disabled={loading}>{loading ? "Saving..." : modalMode === "create" ? "Add Driver" : "Save Changes"}</Button>
+                    </div>
+                }
+            >
+                <form id="driver-form" onSubmit={handleSubmit} className="flex flex-col gap-5">
                     {formError && (
                         <div className="bg-danger/10 border border-danger/20 text-danger text-sm p-3 rounded-lg font-medium">
                             {formError}
@@ -383,11 +393,6 @@ const Drivers = () => {
                         {modalMode === "edit" && (
                             <Select label="Status" name="status" value={form.status} onChange={handleChange} options={[{ label: "Available", value: "Available" }, { label: "On Trip", value: "On Trip" }, { label: "Off Duty", value: "Off Duty" }, { label: "Suspended", value: "Suspended" }]} className="md:col-span-2" />
                         )}
-                    </div>
-
-                    <div className="flex items-center justify-end gap-3 mt-4 pt-5 border-t border-border">
-                        <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-                        <Button type="submit" disabled={loading}>{loading ? "Saving..." : modalMode === "create" ? "Add Driver" : "Save Changes"}</Button>
                     </div>
                 </form>
             </Modal>

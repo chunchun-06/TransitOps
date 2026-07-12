@@ -357,8 +357,18 @@ const VehiclePage = () => {
             </div>
 
             {/* Create / Edit Modal */}
-            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={modalMode === "create" ? "Add New Vehicle" : "Edit Vehicle"}>
-                <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+            <Modal 
+                isOpen={isModalOpen} 
+                onClose={() => setIsModalOpen(false)} 
+                title={modalMode === "create" ? "Add New Vehicle" : "Edit Vehicle"}
+                footer={
+                    <div className="flex items-center justify-end gap-3 w-full">
+                        <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+                        <Button type="submit" form="vehicle-form" disabled={loading}>{loading ? "Saving..." : modalMode === "create" ? "Add Vehicle" : "Save Changes"}</Button>
+                    </div>
+                }
+            >
+                <form id="vehicle-form" onSubmit={handleSubmit} className="flex flex-col gap-5">
                     {formError && (
                         <div className="bg-danger/10 border border-red-500/20 text-danger text-sm p-3 rounded-lg font-medium">
                             {formError}
@@ -375,11 +385,6 @@ const VehiclePage = () => {
                         {modalMode === "edit" && (
                             <Select label="Status" name="status" value={form.status} onChange={handleChange} options={[{ label: "Available", value: "Available" }, { label: "On Trip", value: "On Trip" }, { label: "In Shop", value: "In Shop" }, { label: "Retired", value: "Retired" }]} className="md:col-span-2" />
                         )}
-                    </div>
-
-                    <div className="flex items-center justify-end gap-3 mt-4 pt-5 border-t border-border">
-                        <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-                        <Button type="submit" disabled={loading}>{loading ? "Saving..." : modalMode === "create" ? "Add Vehicle" : "Save Changes"}</Button>
                     </div>
                 </form>
             </Modal>

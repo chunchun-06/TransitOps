@@ -154,8 +154,20 @@ const Users = () => {
             </div>
 
             {/* Create User Modal */}
-            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Create System User">
-                <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <Modal 
+                isOpen={isModalOpen} 
+                onClose={() => setIsModalOpen(false)} 
+                title="Create System User"
+                footer={
+                    <div className="flex gap-3 w-full">
+                        <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)} className="flex-1">Cancel</Button>
+                        <Button type="submit" form="user-form" disabled={loading || !form.username || !form.password} className="flex-1">
+                            {loading ? "Creating..." : "Create User"}
+                        </Button>
+                    </div>
+                }
+            >
+                <form id="user-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
                     {errorMsg && (
                         <div className="bg-danger/10 border border-red-500/20 text-danger text-sm p-3 rounded-lg">
                             <span className="font-semibold">Error:</span> {errorMsg}
@@ -165,13 +177,6 @@ const Users = () => {
                     <Input label="Username" name="username" placeholder="e.g. jdoe_dispatch" value={form.username} onChange={handleChange} required />
                     <Input label="Password" name="password" type="password" placeholder="Temporary password" value={form.password} onChange={handleChange} required />
                     <Select label="Role" name="role" value={form.role} onChange={handleChange} options={roleOptions} required />
-
-                    <div className="flex gap-3 mt-4 pt-4 border-t border-border">
-                        <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)} className="flex-1">Cancel</Button>
-                        <Button type="submit" disabled={loading || !form.username || !form.password} className="flex-1">
-                            {loading ? "Creating..." : "Create User"}
-                        </Button>
-                    </div>
                 </form>
             </Modal>
 
