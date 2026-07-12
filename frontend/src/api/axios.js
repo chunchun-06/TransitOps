@@ -11,7 +11,7 @@ const api = axios.create({
 // ── Request interceptor ─────────────────────────────────────────────────────
 api.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem("accessToken");
+        const token = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken");
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
@@ -27,7 +27,9 @@ api.interceptors.response.use(
         if (error.response?.status === 401) {
             localStorage.removeItem("accessToken");
             localStorage.removeItem("user");
-            window.location.href = "/login";
+            sessionStorage.removeItem("accessToken");
+            sessionStorage.removeItem("user");
+            window.dispatchEvent(new Event("auth:unauthorized"));
         }
         return Promise.reject(error);
     }

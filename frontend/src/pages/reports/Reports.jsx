@@ -1,28 +1,137 @@
-import { useState } from "react";
-import { HiOutlineDownload, HiOutlineChartBar, HiOutlineCurrencyDollar } from "react-icons/hi";
+import { useEffect, useState } from "react";
+import { HiOutlineDownload, HiOutlineChartBar, HiOutlineCurrencyDollar, HiOutlineLightBulb, HiOutlinePrinter } from "react-icons/hi";
 import { Button } from "../../components/common";
+import { getDashboardStats, getChartsData, getInsights } from "../../api/report.api";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell, LineChart, Line
+} from "recharts";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
+
+const COLORS = ['#10B981', '#F59E0B', '#EF4444', '#3B82F6', '#8B5CF6'];
 
 const Reports = () => {
-    // Note: Reports are heavily read-only, using dummy UI components to simulate complex charts
-    // which normally require heavy charting libraries (like Recharts) out of scope for pure Tailwind styling constraints
+    const [stats, setStats] = useState(null);
+    const [charts, setCharts] = useState(null);
+    const [insights, setInsights] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [period, setPeriod] = useState("This Month");
 
-    const exportToPDF = () => alert("Exporting to PDF... (Simulated)");
-    const exportToCSV = () => alert("Exporting to CSV... (Simulated)");
+    useEffect(() => {
+        const fetchReports = async () => {
+            try {
+                setLoading(true);
+                const [st, ch, ins] = await Promise.all([
+                    getDashboardStats(),
+                    getChartsData(),
+                    getInsights()
+                ]);
+                setStats(st.data);
+                setCharts(ch.data);
+                setInsights(ins.data);
+            } catch (err) {
+                console.error("Failed to load reports:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchReports();
+    }, [period]);
+
+    const handlePrint = () => {
+        window.print();
+    };
+
+    const exportToCSV = () => {
+        if (!stats) return;
+        const csvContent = "data:text/csv;charset=utf-8," + 
+            "Metric,Value\n" +
+            `Total Vehicles,${stats.total_vehicles}\n` +
+            `Available Vehicles,${stats.available_vehicles}\n` +
+            `Active Trips,${stats.active_trips}\n` +
+            `Monthly Operational Cost,${stats.monthly_operational_cost}\n` +
+            `Fleet Utilization,${stats.fleet_utilization}%\n`;
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "transitops_report.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const exportToPDF = () => {
+        if (!stats) return;
+        const doc = new jsPDF();
+        
+        // Header
+        doc.setFontSize(22);
+        doc.setTextColor(201, 138, 28); // Accent color
+        doc.text("TransitOps", 14, 22);
+        
+        doc.setFontSize(16);
+        doc.setTextColor(40);
+        doc.text("Enterprise Fleet & Financial Report", 14, 32);
+        
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text(`Generated Date: ${new Date().toLocaleString()}`, 14, 40);
+        
+        // Summary Table
+        doc.autoTable({
+            startY: 50,
+            head: [['Metric', 'Value']],
+            body: [
+                ['Total Vehicles', stats.total_vehicles],
+                ['Available Vehicles', stats.available_vehicles],
+                ['Fleet Utilization', `${stats.fleet_utilization}%`],
+                ['Active Trips', stats.active_trips],
+                ['Completed Trips', stats.completed_trips],
+                ['Monthly Operational Cost', `$${stats.monthly_operational_cost}`],
+                ['Monthly Fuel Cost', `$${stats.monthly_fuel_cost}`],
+                ['Monthly Maintenance Cost', `$${stats.monthly_maintenance_cost}`]
+            ],
+            theme: 'grid',
+            headStyles: { fillColor: [201, 138, 28] }
+        });
+
+        // Insights Section
+        let currentY = doc.lastAutoTable.finalY + 15;
+        doc.setFontSize(14);
+        doc.setTextColor(40);
+        doc.text("Key AI Insights", 14, currentY);
+        currentY += 10;
+        doc.setFontSize(11);
+        doc.setTextColor(80);
+        insights.forEach((insight, idx) => {
+            doc.text(`${idx + 1}. ${insight}`, 14, currentY);
+            currentY += 8;
+        });
+
+        doc.save("transitops_report.pdf");
+    };
+
+    if (loading || !stats || !charts) return (
+        <div className="flex justify-center items-center h-64 text-secondary">
+            <p className="animate-pulse">Loading Analytics Data...</p>
+        </div>
+    );
 
     return (
         <div className="animate-fade-in-up space-y-6 max-w-[1600px] mx-auto text-primary">
             
             {/* Top Bar */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card p-4 rounded-xl border border-border shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card p-4 rounded-xl border border-border shadow-soft print:hidden">
                 <div className="flex items-center gap-2">
-                    <HiOutlineChartBar className="text-accent w-5 h-5" />
-                    <h1 className="font-bold text-lg tracking-tight">Financial & Fleet Reports</h1>
+                    <HiOutlineChartBar className="text-accent w-6 h-6" />
+                    <h1 className="font-bold text-xl tracking-tight">Reports & Analytics</h1>
                 </div>
                 
                 <div className="flex items-center gap-3">
                     <select 
-                        className="bg-background border border-border text-secondary text-sm rounded-lg px-4 py-2 focus:outline-none focus:border-accent transition-colors appearance-none cursor-pointer"
+                        className="bg-background border border-border text-secondary text-sm rounded-lg px-4 py-2.5 focus:outline-none focus:border-accent transition-all shadow-sm appearance-none cursor-pointer"
                         value={period}
                         onChange={(e) => setPeriod(e.target.value)}
                     >
@@ -32,7 +141,10 @@ const Reports = () => {
                         <option>Year to Date</option>
                     </select>
                     
-                    <Button variant="secondary" onClick={exportToCSV}>
+                    <Button variant="outline" onClick={handlePrint} title="Print Report">
+                        <HiOutlinePrinter className="w-4 h-4" /> Print
+                    </Button>
+                    <Button variant="outline" onClick={exportToCSV}>
                         <HiOutlineDownload className="w-4 h-4" /> CSV
                     </Button>
                     <Button onClick={exportToPDF}>
@@ -41,108 +153,126 @@ const Reports = () => {
                 </div>
             </div>
 
+            {/* Insights Banner */}
+            {insights.length > 0 && (
+                <div className="bg-accent/10 border border-accent/20 rounded-xl p-4 flex gap-4 items-start shadow-sm">
+                    <div className="p-2 bg-accent/20 text-accent rounded-lg mt-0.5">
+                        <HiOutlineLightBulb className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <h3 className="text-sm font-bold text-accent mb-2">Automated Insights</h3>
+                        <ul className="list-disc pl-4 space-y-1 text-sm text-secondary">
+                            {insights.map((ins, i) => (
+                                <li key={i}>{ins}</li>
+                            ))}
+                        </ul>
+                    </div>
+                </div>
+            )}
+
             {/* Metrics Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-card border border-border rounded-2xl p-6 flex flex-col justify-between shadow-sm group hover:border-accent/50 transition-colors">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                <div className="bg-card border border-border rounded-xl p-5 shadow-soft hover:border-accent/50 transition-all flex flex-col justify-between group">
                     <div className="flex justify-between items-start mb-4">
-                        <p className="text-[10px] text-secondary uppercase tracking-wider font-bold">Total Operating Cost</p>
-                        <div className="p-2 bg-danger/10 rounded-lg text-danger">
+                        <p className="text-[10px] text-muted uppercase tracking-widest font-bold">Total Operating Cost</p>
+                        <div className="p-2 bg-danger/10 rounded-lg text-danger group-hover:scale-110 transition-transform">
                             <HiOutlineCurrencyDollar className="w-5 h-5" />
                         </div>
                     </div>
                     <div>
-                        <p className="text-3xl font-bold text-primary mb-1">₹ 2,45,000</p>
-                        <p className="text-xs text-danger font-medium">+12% vs last {period.toLowerCase()}</p>
+                        <p className="text-2xl font-bold text-primary mb-1">₹ {Number(stats.monthly_operational_cost).toLocaleString()}</p>
+                        <p className="text-xs text-secondary font-medium">Aggregated {period.toLowerCase()}</p>
                     </div>
                 </div>
 
-                <div className="bg-card border border-border rounded-2xl p-6 flex flex-col justify-between shadow-sm group hover:border-accent/50 transition-colors">
+                <div className="bg-card border border-border rounded-xl p-5 shadow-soft hover:border-accent/50 transition-all flex flex-col justify-between group">
                     <div className="flex justify-between items-start mb-4">
-                        <p className="text-[10px] text-secondary uppercase tracking-wider font-bold">Fuel Efficiency (Avg)</p>
-                        <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400">
+                        <p className="text-[10px] text-muted uppercase tracking-widest font-bold">Fleet Utilization</p>
+                        <div className="p-2 bg-info/10 rounded-lg text-info group-hover:scale-110 transition-transform">
                             <HiOutlineChartBar className="w-5 h-5" />
                         </div>
                     </div>
                     <div>
-                        <p className="text-3xl font-bold text-primary mb-1">4.2 km/L</p>
-                        <p className="text-xs text-green-400 font-medium">+0.3 km/L vs last {period.toLowerCase()}</p>
+                        <p className="text-2xl font-bold text-primary mb-1">{stats.fleet_utilization}%</p>
+                        <div className="w-full bg-sidebar rounded-full h-1.5 mt-2 overflow-hidden">
+                            <div className="bg-info h-1.5 rounded-full" style={{width: `${stats.fleet_utilization}%`}}></div>
+                        </div>
                     </div>
                 </div>
 
-                <div className="bg-card border border-border rounded-2xl p-6 flex flex-col justify-between shadow-sm group hover:border-accent/50 transition-colors">
+                <div className="bg-card border border-border rounded-xl p-5 shadow-soft hover:border-accent/50 transition-all flex flex-col justify-between group">
                     <div className="flex justify-between items-start mb-4">
-                        <p className="text-[10px] text-secondary uppercase tracking-wider font-bold">Fleet Utilization</p>
-                        <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400">
+                        <p className="text-[10px] text-muted uppercase tracking-widest font-bold">Active Trips</p>
+                        <div className="p-2 bg-success/10 rounded-lg text-success group-hover:scale-110 transition-transform">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                         </div>
                     </div>
                     <div>
-                        <p className="text-3xl font-bold text-primary mb-1">82%</p>
-                        <p className="text-xs text-secondary font-medium">Target: 85%</p>
+                        <p className="text-2xl font-bold text-primary mb-1">{stats.active_trips}</p>
+                        <p className="text-xs text-success font-medium">{stats.completed_trips} completed {period.toLowerCase()}</p>
+                    </div>
+                </div>
+
+                <div className="bg-card border border-border rounded-xl p-5 shadow-soft hover:border-accent/50 transition-all flex flex-col justify-between group">
+                    <div className="flex justify-between items-start mb-4">
+                        <p className="text-[10px] text-muted uppercase tracking-widest font-bold">Vehicle Availability</p>
+                        <div className="p-2 bg-warning/10 rounded-lg text-warning group-hover:scale-110 transition-transform">
+                            <HiOutlineChartBar className="w-5 h-5" />
+                        </div>
+                    </div>
+                    <div>
+                        <p className="text-2xl font-bold text-primary mb-1">{stats.vehicle_availability}%</p>
+                        <p className="text-xs text-secondary font-medium">{stats.available_vehicles} / {stats.total_vehicles} available</p>
                     </div>
                 </div>
             </div>
 
-            {/* Charts Section (Simulated with UI blocks) */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Charts Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-10">
                 
-                {/* Cost Breakdown */}
-                <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
-                    <h2 className="text-[10px] uppercase tracking-widest text-muted font-bold mb-6">Cost Breakdown</h2>
-                    <div className="space-y-4">
-                        <div>
-                            <div className="flex justify-between text-sm mb-1.5"><span className="text-secondary">Fuel</span><span className="font-bold">₹ 1,50,000 (61%)</span></div>
-                            <div className="w-full bg-sidebar rounded-full h-2.5 overflow-hidden"><div className="bg-blue-500 h-2.5 rounded-full" style={{width: '61%'}}></div></div>
-                        </div>
-                        <div>
-                            <div className="flex justify-between text-sm mb-1.5"><span className="text-secondary">Maintenance</span><span className="font-bold">₹ 65,000 (26%)</span></div>
-                            <div className="w-full bg-sidebar rounded-full h-2.5 overflow-hidden"><div className="bg-warning h-2.5 rounded-full" style={{width: '26%'}}></div></div>
-                        </div>
-                        <div>
-                            <div className="flex justify-between text-sm mb-1.5"><span className="text-secondary">Tolls & Fines</span><span className="font-bold">₹ 20,000 (8%)</span></div>
-                            <div className="w-full bg-sidebar rounded-full h-2.5 overflow-hidden"><div className="bg-purple-500 h-2.5 rounded-full" style={{width: '8%'}}></div></div>
-                        </div>
-                        <div>
-                            <div className="flex justify-between text-sm mb-1.5"><span className="text-secondary">Other</span><span className="font-bold">₹ 10,000 (5%)</span></div>
-                            <div className="w-full bg-sidebar rounded-full h-2.5 overflow-hidden"><div className="bg-gray-500 h-2.5 rounded-full" style={{width: '5%'}}></div></div>
-                        </div>
+                <div className="bg-card border border-border rounded-xl p-6 shadow-soft">
+                    <h2 className="text-[10px] uppercase tracking-widest text-muted font-bold mb-6">Monthly Trip Volume</h2>
+                    <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={charts.monthly_trips} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#2B3038" vertical={false} />
+                                <XAxis dataKey="month" tick={{fill: '#6B7280', fontSize: 12}} axisLine={false} tickLine={false} />
+                                <YAxis tick={{fill: '#6B7280', fontSize: 12}} axisLine={false} tickLine={false} />
+                                <Tooltip 
+                                    contentStyle={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                                    itemStyle={{ color: 'var(--text-primary)' }}
+                                />
+                                <Bar dataKey="trips" fill="#D4A017" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
                     </div>
                 </div>
 
-                {/* Top Costliest Vehicles */}
-                <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
-                    <h2 className="text-[10px] uppercase tracking-widest text-muted font-bold mb-6">Costliest Vehicles ({period})</h2>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                            <thead>
-                                <tr className="border-b border-border text-muted text-[10px] uppercase tracking-wider">
-                                    <th className="pb-3">Vehicle</th>
-                                    <th className="pb-3">Maintenance</th>
-                                    <th className="pb-3">Fuel</th>
-                                    <th className="pb-3 text-right">Total</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-[#2B3038]">
-                                <tr className="text-sm">
-                                    <td className="py-3 font-semibold">TRUCK-11</td>
-                                    <td className="py-3 text-secondary">₹ 18,000</td>
-                                    <td className="py-3 text-secondary">₹ 45,000</td>
-                                    <td className="py-3 text-right text-danger font-bold">₹ 63,000</td>
-                                </tr>
-                                <tr className="text-sm">
-                                    <td className="py-3 font-semibold">VAN-05</td>
-                                    <td className="py-3 text-secondary">₹ 2,500</td>
-                                    <td className="py-3 text-secondary">₹ 12,000</td>
-                                    <td className="py-3 text-right text-accent font-bold">₹ 14,500</td>
-                                </tr>
-                                <tr className="text-sm">
-                                    <td className="py-3 font-semibold">MINI-03</td>
-                                    <td className="py-3 text-secondary">₹ 6,200</td>
-                                    <td className="py-3 text-secondary">₹ 8,000</td>
-                                    <td className="py-3 text-right text-secondary font-bold">₹ 14,200</td>
-                                </tr>
-                            </tbody>
-                        </table>
+                <div className="bg-card border border-border rounded-xl p-6 shadow-soft flex flex-col h-full">
+                    <h2 className="text-[10px] uppercase tracking-widest text-muted font-bold mb-6">Fleet Status Distribution</h2>
+                    <div className="h-64 flex-1">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={charts.vehicle_status}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={60}
+                                    outerRadius={80}
+                                    paddingAngle={5}
+                                    dataKey="count"
+                                    nameKey="status"
+                                >
+                                    {charts.vehicle_status.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip 
+                                    contentStyle={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                                />
+                                <Legend wrapperStyle={{ fontSize: '12px', color: 'var(--text-secondary)' }} />
+                            </PieChart>
+                        </ResponsiveContainer>
                     </div>
                 </div>
 

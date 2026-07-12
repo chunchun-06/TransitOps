@@ -1,6 +1,5 @@
 import api from "./axios";
 
-export const getReports = async (filters) => {
-    const response = await api.get("/reports", { params: filters });
-    return response.data;
-};
+export const getDashboardStats = () => api.get("/reports/dashboard-stats");
+export const getChartsData = () => api.get("/reports/charts");
+export const getInsights = () => api.get("/reports/insights");

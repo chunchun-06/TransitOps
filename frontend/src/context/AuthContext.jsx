@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useState, useCallback, useEffect } from "react";
 /* eslint-disable react-refresh/only-export-components */
 
 const AuthContext = createContext(null);
@@ -62,6 +62,12 @@ export const AuthProvider = ({ children }) => {
     const currentUser = useCallback(() => {
         return user;
     }, [user]);
+
+    useEffect(() => {
+        const handleUnauthorized = () => signout();
+        window.addEventListener("auth:unauthorized", handleUnauthorized);
+        return () => window.removeEventListener("auth:unauthorized", handleUnauthorized);
+    }, [signout]);
 
     const value = {
         user,
