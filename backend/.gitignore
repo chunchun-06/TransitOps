@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+
+# Logs
+*.log
+
+# Coverage
+coverage/
+
+# Temporary files
+tmp/
