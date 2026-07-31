@@ -23,6 +23,9 @@ const NAV_MAP = {
         { label: "Drivers",      path: "/drivers",      Icon: HiOutlineUsers },
         { label: "Trips",        path: "/trips",        Icon: HiOutlineMap },
         { label: "Maintenance",  path: "/maintenance",  Icon: HiOutlineClipboardList },
+        { label: "Fuel",         path: "/fuel",         Icon: HiOutlineBeaker },
+        { label: "Expenses",     path: "/expenses",     Icon: HiOutlineCreditCard },
+        { label: "Reports",      path: "/reports",      Icon: HiOutlineDocumentReport },
         { label: "Users",        path: "/users",        Icon: HiOutlineCog },
     ],
     Dispatcher: [

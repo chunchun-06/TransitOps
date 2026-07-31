@@ -1,7 +1,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
-DROP TABLE IF EXISTS fuel_logs CASCADE;
-DROP TABLE IF EXISTS maintenance_logs CASCADE;
+DROP TABLE IF EXISTS fuel CASCADE;
+DROP TABLE IF EXISTS maintenance CASCADE;
 DROP TABLE IF EXISTS trips CASCADE;
 DROP TABLE IF EXISTS expenses CASCADE;
 DROP TABLE IF EXISTS drivers CASCADE;
@@ -170,97 +170,67 @@ CREATE TABLE trips (
         REFERENCES users(id)
 );
 
-CREATE TABLE maintenance_logs (
-
+CREATE TABLE maintenance (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-
     vehicle_id UUID NOT NULL,
-
-    maintenance_type VARCHAR(100),
-
+    service_type VARCHAR(100),
     description TEXT,
-
     cost DECIMAL(12,2),
-
     status VARCHAR(20)
         CHECK (
             status IN (
-                'Active',
+                'In Shop',
                 'Completed'
             )
         )
-        DEFAULT 'Active',
-
-    start_date TIMESTAMP,
-
-    end_date TIMESTAMP,
-
+        DEFAULT 'In Shop',
+    service_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_by UUID,
-
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
     CONSTRAINT fk_maintenance_vehicle
         FOREIGN KEY(vehicle_id)
         REFERENCES vehicles(id),
-
     CONSTRAINT fk_maintenance_user
         FOREIGN KEY(created_by)
         REFERENCES users(id)
 );
 
-CREATE TABLE fuel_logs (
-
+CREATE TABLE fuel (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-
     trip_id UUID,
-
     vehicle_id UUID,
-
-    liters DECIMAL(10,2),
-
+    fuel_amount DECIMAL(10,2),
     cost DECIMAL(12,2),
-
-    fuel_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
+    date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_by UUID,
-
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
     CONSTRAINT fk_fuel_trip
         FOREIGN KEY(trip_id)
         REFERENCES trips(id),
-
     CONSTRAINT fk_fuel_vehicle
         FOREIGN KEY(vehicle_id)
         REFERENCES vehicles(id),
-
     CONSTRAINT fk_fuel_user
         FOREIGN KEY(created_by)
         REFERENCES users(id)
 );
 
 CREATE TABLE expenses (
-
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-
+    trip_id UUID,
     vehicle_id UUID,
-
-    expense_type VARCHAR(100),
-
+    category VARCHAR(100),
     description TEXT,
-
     amount DECIMAL(12,2),
-
-    expense_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
+    date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_by UUID,
-
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
+    CONSTRAINT fk_expense_trip
+        FOREIGN KEY(trip_id)
+        REFERENCES trips(id),
     CONSTRAINT fk_expense_vehicle
         FOREIGN KEY(vehicle_id)
         REFERENCES vehicles(id),
-
     CONSTRAINT fk_expense_user
         FOREIGN KEY(created_by)
         REFERENCES users(id)

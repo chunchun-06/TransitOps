@@ -17,11 +17,10 @@ exports.getDashboardAnalytics = async (req, res) => {
                 (SELECT COUNT(*) FROM trips WHERE status = 'Completed') AS completed_trips,
                 (SELECT COUNT(*) FROM trips WHERE status = 'Cancelled') AS cancelled_trips,
                 
-                -- Replace with actual fuel and expense tables if they exist, otherwise default to 0
-                COALESCE((SELECT SUM(amount) FROM fuel WHERE DATE(date) = CURRENT_DATE), 0) AS today_fuel_cost,
+                COALESCE((SELECT SUM(cost) FROM fuel WHERE DATE(date) = CURRENT_DATE), 0) AS today_fuel_cost,
                 COALESCE((SELECT SUM(amount) FROM expenses WHERE DATE(date) = CURRENT_DATE), 0) AS today_expense,
-                COALESCE((SELECT SUM(amount) FROM fuel WHERE EXTRACT(MONTH FROM date) = EXTRACT(MONTH FROM CURRENT_DATE)), 0) AS monthly_fuel_cost,
-                COALESCE((SELECT SUM(cost) FROM maintenance WHERE EXTRACT(MONTH FROM date) = EXTRACT(MONTH FROM CURRENT_DATE)), 0) AS monthly_maintenance_cost,
+                COALESCE((SELECT SUM(cost) FROM fuel WHERE EXTRACT(MONTH FROM date) = EXTRACT(MONTH FROM CURRENT_DATE)), 0) AS monthly_fuel_cost,
+                COALESCE((SELECT SUM(cost) FROM maintenance WHERE EXTRACT(MONTH FROM service_date) = EXTRACT(MONTH FROM CURRENT_DATE)), 0) AS monthly_maintenance_cost,
                 COALESCE((SELECT SUM(amount) FROM expenses WHERE EXTRACT(MONTH FROM date) = EXTRACT(MONTH FROM CURRENT_DATE)), 0) AS monthly_expense_cost
         `);
         

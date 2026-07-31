@@ -18,16 +18,24 @@ exports.getTrips = async (req, res) => {
 };
 
 exports.createTrip = async (req, res) => {
-    const { vehicle_id, driver_id, distance, duration } = req.body;
+    const { vehicle_id, driver_id, source, destination, cargo_weight, planned_distance } = req.body;
     try {
         await pool.query('BEGIN');
         
         // Create trip
         const insertQuery = `
-            INSERT INTO trips (vehicle_id, driver_id, status, distance, duration)
-            VALUES ($1, $2, 'Dispatched', $3, $4) RETURNING *
+            INSERT INTO trips (vehicle_id, driver_id, source, destination, cargo_weight, planned_distance, status, created_by)
+            VALUES ($1, $2, $3, $4, $5, $6, 'Dispatched', $7) RETURNING *
         `;
-        const result = await pool.query(insertQuery, [vehicle_id, driver_id, distance, duration]);
+        const result = await pool.query(insertQuery, [
+            vehicle_id, 
+            driver_id, 
+            source || '', 
+            destination || '', 
+            cargo_weight ? Number(cargo_weight) : null, 
+            planned_distance ? Number(planned_distance) : null,
+            req.user?.id || null
+        ]);
         
         // Update vehicle and driver status
         await pool.query("UPDATE vehicles SET status = 'On Trip' WHERE id = $1", [vehicle_id]);
@@ -44,7 +52,7 @@ exports.createTrip = async (req, res) => {
 
 exports.updateTrip = async (req, res) => {
     const { id } = req.params;
-    const { status, distance, duration } = req.body;
+    const { status, actual_distance, final_odometer, fuel_used, revenue } = req.body;
     try {
         await pool.query('BEGIN');
         
@@ -58,10 +66,16 @@ exports.updateTrip = async (req, res) => {
         const driver_id = currentTrip.rows[0].driver_id;
         
         const updateQuery = `
-            UPDATE trips SET status = $1, distance = $2, duration = $3, updated_at = CURRENT_TIMESTAMP
-            WHERE id = $4 RETURNING *
+            UPDATE trips 
+            SET status = COALESCE($1, status), 
+                actual_distance = COALESCE($2, actual_distance), 
+                final_odometer = COALESCE($3, final_odometer), 
+                fuel_used = COALESCE($4, fuel_used), 
+                revenue = COALESCE($5, revenue),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $6 RETURNING *
         `;
-        const result = await pool.query(updateQuery, [status, distance, duration, id]);
+        const result = await pool.query(updateQuery, [status, actual_distance, final_odometer, fuel_used, revenue, id]);
         
         if (oldStatus !== 'Completed' && oldStatus !== 'Cancelled' && (status === 'Completed' || status === 'Cancelled')) {
             await pool.query("UPDATE vehicles SET status = 'Available' WHERE id = $1", [vehicle_id]);
@@ -79,6 +93,7 @@ exports.updateTrip = async (req, res) => {
         res.status(500).json({ message: 'Server error' });
     }
 };
+
 
 exports.deleteTrip = async (req, res) => {
     const { id } = req.params;

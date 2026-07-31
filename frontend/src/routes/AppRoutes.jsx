@@ -69,19 +69,19 @@ const AppRoutes = () => {
                     } />
 
                     <Route path="/fuel" element={
-                        <RoleGuard roles={["Financial Analyst"]}>
+                        <RoleGuard roles={["Fleet Manager", "Financial Analyst"]}>
                             <Fuel />
                         </RoleGuard>
                     } />
 
                     <Route path="/expenses" element={
-                        <RoleGuard roles={["Financial Analyst"]}>
+                        <RoleGuard roles={["Fleet Manager", "Financial Analyst"]}>
                             <Expenses />
                         </RoleGuard>
                     } />
 
                     <Route path="/reports" element={
-                        <RoleGuard roles={["Financial Analyst"]}>
+                        <RoleGuard roles={["Fleet Manager", "Financial Analyst"]}>
                             <Reports />
                         </RoleGuard>
                     } />

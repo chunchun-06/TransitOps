@@ -1,29 +1,10 @@
+import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { HiOutlineFilter } from "react-icons/hi";
-
-const STATS = [
-    { label: "ACTIVE VEHICLES", value: "53", borderClass: "border-l-[#10B981]" },
-    { label: "AVAILABLE VEHICLES", value: "42", borderClass: "border-l-[#10B981]" },
-    { label: "VEHICLES IN MAINTENANCE", value: "05", borderClass: "border-l-[#F59E0B]" },
-    { label: "ACTIVE TRIPS", value: "18", borderClass: "border-l-[#3B82F6]" },
-    { label: "PENDING TRIPS", value: "09", borderClass: "border-l-[#60A5FA]" },
-    { label: "DRIVERS ON DUTY", value: "26", borderClass: "border-l-[#60A5FA]" },
-    { label: "FLEET UTILIZATION", value: "81%", borderClass: "border-l-[#10B981]" },
-];
-
-const RECENT_TRIPS = [
-    { id: "TR001", vehicle: "VAN-05", driver: "Alex", status: "On Trip", eta: "45 min" },
-    { id: "TR002", vehicle: "TRK-12", driver: "John", status: "Completed", eta: "—" },
-    { id: "TR003", vehicle: "MINI-08", driver: "Priya", status: "Dispatched", eta: "—" },
-    { id: "TR004", vehicle: "—", driver: "—", status: "Draft", eta: "—" },
-];
-
-const VEHICLE_STATUS = [
-    { label: "Available", percentage: 70, bgClass: "bg-success" },
-    { label: "On Trip", percentage: 25, bgClass: "bg-info" },
-    { label: "In Shop", percentage: 10, bgClass: "bg-warning" },
-    { label: "Retired", percentage: 5, bgClass: "bg-[#F87171]" },
-];
+import { getDashboardStats } from "../../api/report.api";
+import { getVehicles } from "../../api/vehicle.api";
+import { getDrivers } from "../../api/driver.api";
+import { getTrips } from "../../api/trip.api";
 
 const getStatusClasses = (status) => {
     switch (status) {
@@ -36,6 +17,57 @@ const getStatusClasses = (status) => {
 };
 
 const Dashboard = () => {
+    const [stats, setStats] = useState(null);
+    const [trips, setTrips] = useState([]);
+    const [vehicles, setVehicles] = useState([]);
+    const [drivers, setDrivers] = useState([]);
+
+    useEffect(() => {
+        const fetchDashboardData = async () => {
+            try {
+                const [statsRes, tripsRes, vehiclesRes, driversRes] = await Promise.all([
+                    getDashboardStats().catch(() => null),
+                    getTrips().catch(() => ({ data: [] })),
+                    getVehicles().catch(() => ({ data: [] })),
+                    getDrivers().catch(() => ({ data: [] }))
+                ]);
+                if (statsRes) setStats(statsRes.data);
+                setTrips(tripsRes.data || []);
+                setVehicles(vehiclesRes.data || []);
+                setDrivers(driversRes.data || []);
+            } catch (err) {
+                console.error("Error fetching dashboard data:", err);
+            }
+        };
+        fetchDashboardData();
+    }, []);
+
+    const activeVehiclesCount = vehicles.filter(v => v.status === "On Trip").length;
+    const availableVehiclesCount = vehicles.filter(v => v.status === "Available").length;
+    const maintenanceVehiclesCount = vehicles.filter(v => v.status === "In Shop").length;
+    const activeTripsCount = trips.filter(t => t.status === "Dispatched" || t.status === "In Progress").length;
+    const pendingTripsCount = trips.filter(t => t.status === "Draft").length;
+    const driversOnDutyCount = drivers.filter(d => d.status === "On Trip" || d.status === "Available").length;
+    const fleetUtilizationRate = stats?.fleet_utilization ?? (vehicles.length > 0 ? Math.round((activeVehiclesCount / vehicles.length) * 100) : 0);
+
+    const statsList = [
+        { label: "ACTIVE VEHICLES", value: activeVehiclesCount, borderClass: "border-l-[#3B82F6]" },
+        { label: "AVAILABLE VEHICLES", value: availableVehiclesCount, borderClass: "border-l-[#10B981]" },
+        { label: "VEHICLES IN MAINTENANCE", value: maintenanceVehiclesCount, borderClass: "border-l-[#F59E0B]" },
+        { label: "ACTIVE TRIPS", value: activeTripsCount, borderClass: "border-l-[#3B82F6]" },
+        { label: "PENDING TRIPS", value: pendingTripsCount, borderClass: "border-l-[#60A5FA]" },
+        { label: "DRIVERS ON DUTY", value: driversOnDutyCount, borderClass: "border-l-[#60A5FA]" },
+        { label: "FLEET UTILIZATION", value: `${fleetUtilizationRate}%`, borderClass: "border-l-[#10B981]" },
+    ];
+
+    const totalVehiclesCount = vehicles.length;
+    const vehicleStatusData = [
+        { label: "Available", percentage: totalVehiclesCount > 0 ? Math.round((vehicles.filter(v => v.status === 'Available').length / totalVehiclesCount) * 100) : 0, bgClass: "bg-success" },
+        { label: "On Trip", percentage: totalVehiclesCount > 0 ? Math.round((vehicles.filter(v => v.status === 'On Trip').length / totalVehiclesCount) * 100) : 0, bgClass: "bg-info" },
+        { label: "In Shop", percentage: totalVehiclesCount > 0 ? Math.round((vehicles.filter(v => v.status === 'In Shop').length / totalVehiclesCount) * 100) : 0, bgClass: "bg-warning" },
+        { label: "Retired", percentage: totalVehiclesCount > 0 ? Math.round((vehicles.filter(v => v.status === 'Retired').length / totalVehiclesCount) * 100) : 0, bgClass: "bg-[#F87171]" },
+    ];
+
     return (
         <div className="animate-fade-in-up space-y-6 max-w-[1600px] mx-auto text-primary">
             
@@ -65,7 +97,7 @@ const Dashboard = () => {
 
             {/* Stat Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-                {STATS.map((stat, i) => (
+                {statsList.map((stat, i) => (
                     <div 
                         key={i} 
                         className={`bg-card border-y border-r border-l-4 border-border ${stat.borderClass} rounded-xl p-4 flex flex-col justify-between shadow-sm hover:brightness-110 transition-all duration-200`}
@@ -100,21 +132,28 @@ const Dashboard = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-[#2B3038]">
-                                {RECENT_TRIPS.map((trip, i) => {
+                                {trips.slice(0, 5).map((trip) => {
+                                    const v = vehicles.find(veh => veh.id === trip.vehicle_id);
+                                    const d = drivers.find(drv => drv.id === trip.driver_id);
                                     return (
-                                        <tr key={i} className="hover:bg-primary/[0.02] transition-colors">
-                                            <td className="px-6 py-4 text-sm text-secondary font-medium">{trip.id}</td>
-                                            <td className="px-6 py-4 text-sm text-secondary">{trip.vehicle}</td>
-                                            <td className="px-6 py-4 text-sm text-secondary">{trip.driver}</td>
+                                        <tr key={trip.id} className="hover:bg-primary/[0.02] transition-colors">
+                                            <td className="px-6 py-4 text-sm text-secondary font-medium">TR-{String(trip.id).substring(0, 5).toUpperCase()}</td>
+                                            <td className="px-6 py-4 text-sm text-secondary">{v ? v.registration_no : "—"}</td>
+                                            <td className="px-6 py-4 text-sm text-secondary">{d ? d.name : "—"}</td>
                                             <td className="px-6 py-4 text-sm">
                                                 <span className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md inline-block ${getStatusClasses(trip.status)}`}>
                                                     {trip.status}
                                                 </span>
                                             </td>
-                                            <td className="px-6 py-4 text-sm text-secondary">{trip.eta}</td>
+                                            <td className="px-6 py-4 text-sm text-secondary">{trip.status === 'Dispatched' ? 'In Transit' : '—'}</td>
                                         </tr>
                                     );
                                 })}
+                                {trips.length === 0 && (
+                                    <tr>
+                                        <td colSpan={5} className="px-6 py-8 text-center text-muted text-sm">No trips found.</td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
                     </div>
@@ -124,10 +163,11 @@ const Dashboard = () => {
                 <div className="bg-card border border-border rounded-2xl p-6 flex flex-col shadow-sm">
                     <h2 className="text-sm font-semibold text-secondary uppercase tracking-widest mb-6">Vehicle Status</h2>
                     <div className="space-y-6 flex-1 flex flex-col justify-center py-4">
-                        {VEHICLE_STATUS.map((status, i) => (
+                        {vehicleStatusData.map((status, i) => (
                             <div key={i}>
                                 <div className="flex justify-between items-center mb-2">
                                     <span className="text-sm text-secondary font-medium">{status.label}</span>
+                                    <span className="text-xs text-muted font-semibold">{status.percentage}%</span>
                                 </div>
                                 <div className="w-full bg-sidebar rounded-full h-3.5 border border-border overflow-hidden">
                                     <div 
@@ -143,7 +183,6 @@ const Dashboard = () => {
             </div>
         </div>
     );
-
 };
 
 export default Dashboard;

@@ -16,6 +16,7 @@ const Users = () => {
     
     const [form, setForm] = useState({
         username: "",
+        email: "",
         password: "",
         role: "Dispatcher"
     });
@@ -23,7 +24,8 @@ const Users = () => {
     const fetchUsers = async () => {
         try {
             const res = await getUsers();
-            setUsers(res.data || []);
+            // Backend returns { success, message, data: [...] }
+            setUsers(res.data?.data || res.data || []);
         } catch (err) {
             console.error(err);
         }
@@ -42,7 +44,7 @@ const Users = () => {
             setErrorMsg("");
             await createUser(form);
             setIsModalOpen(false);
-            setForm({ username: "", password: "", role: "Dispatcher" });
+            setForm({ username: "", email: "", password: "", role: "Dispatcher" });
             fetchUsers();
         } catch (err) {
             setErrorMsg(err.response?.data?.message || "Failed to create user");
@@ -161,7 +163,7 @@ const Users = () => {
                 footer={
                     <div className="flex gap-3 w-full">
                         <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)} className="flex-1">Cancel</Button>
-                        <Button type="submit" form="user-form" disabled={loading || !form.username || !form.password} className="flex-1">
+                        <Button type="submit" form="user-form" disabled={loading || !form.username || !form.email || !form.password} className="flex-1">
                             {loading ? "Creating..." : "Create User"}
                         </Button>
                     </div>
@@ -175,6 +177,7 @@ const Users = () => {
                     )}
                     
                     <Input label="Username" name="username" placeholder="e.g. jdoe_dispatch" value={form.username} onChange={handleChange} required />
+                    <Input label="Email" name="email" type="email" placeholder="e.g. jdoe@company.com" value={form.email} onChange={handleChange} required />
                     <Input label="Password" name="password" type="password" placeholder="Temporary password" value={form.password} onChange={handleChange} required />
                     <Select label="Role" name="role" value={form.role} onChange={handleChange} options={roleOptions} required />
                 </form>

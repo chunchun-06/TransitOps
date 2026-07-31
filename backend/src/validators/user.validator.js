@@ -10,6 +10,7 @@ const createUserSchema = Joi.object({
     role: Joi.string()
         .valid(
             "Fleet Manager",
+            "Dispatcher",
             "Driver",
             "Safety Officer",
             "Financial Analyst"
