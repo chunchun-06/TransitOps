@@ -8,41 +8,43 @@ import {
     HiOutlineSearch,
     HiOutlineCog,
     HiOutlineKey,
+    HiOutlineSun,
+    HiOutlineMoon,
+    HiOutlineDesktopComputer,
 } from "react-icons/hi";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import { logout as apiLogout } from "../../api/auth.api";
-import { HiOutlineSun, HiOutlineMoon, HiOutlineDesktopComputer } from "react-icons/hi";
 
 // ── Role badge colors ──────────────────────────────────────────────────────
 const ROLE_COLORS = {
-    "Fleet Manager":    { bg: "rgba(59,130,246,0.12)",  color: "#60A5FA", border: "rgba(59,130,246,0.25)" },
-    Dispatcher:         { bg: "rgba(139,92,246,0.12)",  color: "#A78BFA", border: "rgba(139,92,246,0.25)" },
-    "Safety Officer":   { bg: "rgba(16,185,129,0.12)",  color: "#34D399", border: "rgba(16,185,129,0.25)" },
-    "Financial Analyst":{ bg: "rgba(245,158,11,0.12)",  color: "#FBBF24", border: "rgba(245,158,11,0.25)" },
+    "Fleet Manager":    { bg: "rgba(59,130,246,0.12)",  color: "#3B82F6", border: "rgba(59,130,246,0.3)" },
+    Dispatcher:         { bg: "rgba(139,92,246,0.12)",  color: "#8B5CF6", border: "rgba(139,92,246,0.3)" },
+    "Safety Officer":   { bg: "rgba(16,185,129,0.12)",  color: "#10B981", border: "rgba(16,185,129,0.3)" },
+    "Financial Analyst":{ bg: "rgba(245,158,11,0.12)",  color: "#F59E0B", border: "rgba(245,158,11,0.3)" },
 };
 
 // ── Route → page title map ─────────────────────────────────────────────────
 const PAGE_TITLES = {
-    "/dashboard":   "Dashboard",
-    "/vehicles":    "Vehicles",
-    "/drivers":     "Drivers",
-    "/trips":       "Trips",
-    "/maintenance": "Maintenance",
-    "/fuel":        "Fuel Management",
-    "/expenses":    "Expenses",
-    "/reports":     "Reports",
-    "/users":       "User Management",
+    "/dashboard":           "Dashboard",
+    "/vehicles":            "Vehicles",
+    "/drivers":             "Drivers",
+    "/trips":               "Trips",
+    "/maintenance":         "Maintenance",
+    "/fuel":                "Fuel Management",
+    "/expenses":            "Expenses",
+    "/reports":             "Reports",
+    "/users":               "User Management",
+    "/finance/drivers":     "Drivers (View)",
+    "/finance/trips":       "Trips (View)",
+    "/finance/maintenance": "Maintenance (View)",
+    "/finance/fuel":        "Fuel (View)",
+    "/finance/expenses":    "Expenses (View)",
 };
 
 // ── Avatar initials ────────────────────────────────────────────────────────
-const getInitials = (username = "") => {
-    return username
-        .split(" ")
-        .map((w) => w[0]?.toUpperCase())
-        .slice(0, 2)
-        .join("") || "U";
-};
+const getInitials = (username = "") =>
+    username.split(" ").map((w) => w[0]?.toUpperCase()).slice(0, 2).join("") || "U";
 
 // ── Navbar ─────────────────────────────────────────────────────────────────
 const Navbar = () => {
@@ -59,18 +61,16 @@ const Navbar = () => {
     const initials = getInitials(user?.username);
 
     const getGreeting = () => {
-        const hour = new Date().getHours();
-        if (hour < 12) return "Good morning";
-        if (hour < 18) return "Good afternoon";
+        const h = new Date().getHours();
+        if (h < 12) return "Good morning";
+        if (h < 18) return "Good afternoon";
         return "Good evening";
     };
 
-    // Close dropdown on outside click
     useEffect(() => {
         const handler = (e) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target))
                 setDropdownOpen(false);
-            }
         };
         document.addEventListener("mousedown", handler);
         return () => document.removeEventListener("mousedown", handler);
@@ -78,148 +78,94 @@ const Navbar = () => {
 
     const handleLogout = async () => {
         setLoggingOut(true);
-        try {
-            await apiLogout();
-        } finally {
+        try { await apiLogout(); } finally {
             signout();
             navigate("/login", { replace: true });
         }
+    };
+
+    const cycleTheme = () => {
+        if (theme === "Light") setTheme("Dark");
+        else if (theme === "Dark") setTheme("System");
+        else setTheme("Light");
     };
 
     return (
         <header
             style={{
                 height: "64px",
-                background: "#111111",
-                borderBottom: "1px solid rgba(255,255,255,0.06)",
+                background: "var(--bg-navbar)",
+                borderBottom: "1px solid var(--border-color)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
                 padding: "0 28px",
                 flexShrink: 0,
+                transition: "background 0.3s, border-color 0.3s",
+                boxShadow: "var(--shadow-soft)",
             }}
         >
-
             {/* Left: greeting + page title */}
             <div className="flex items-center gap-6">
                 <div>
                     <h2
-                        className="text-lg font-bold text-primary tracking-tight flex items-center gap-2"
+                        className="text-lg font-bold tracking-tight"
+                        style={{ color: "var(--text-primary)" }}
                         aria-live="polite"
                     >
-                        {getGreeting()}, {user?.username?.split(' ')[0] || 'User'}!
+                        {getGreeting()}, {user?.username?.split(" ")[0] || "User"}!
                     </h2>
-                    <p className="text-xs text-muted mt-0.5">
-                        {pageTitle} • {new Date().toLocaleDateString("en-US", {
-                            weekday: "long",
-                            year: "numeric",
-                            month: "long",
-                            day: "numeric",
+                    <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                        {pageTitle} •{" "}
+                        {new Date().toLocaleDateString("en-US", {
+                            weekday: "long", year: "numeric", month: "long", day: "numeric",
                         })}
                     </p>
                 </div>
             </div>
 
-            {/* Right: search + notifications + user dropdown */}
-            <div className="flex items-center gap-5">
+            {/* Right: search + theme toggle + bell + avatar */}
+            <div className="flex items-center gap-4">
 
-                {/* Search Bar */}
+                {/* Search */}
                 <div className="hidden md:flex items-center relative">
-                    <HiOutlineSearch className="absolute left-3.5 w-4 h-4 text-muted" />
+                    <HiOutlineSearch
+                        className="absolute left-3.5 w-4 h-4"
+                        style={{ color: "var(--text-muted)" }}
+                    />
                     <input
                         type="text"
                         placeholder="Search..."
-                        className="form-input w-64 border text-sm rounded-full pl-10 pr-4 py-2 focus:outline-none transition-all"
+                        className="form-input w-60 border text-sm rounded-full pl-10 pr-4 py-2 focus:outline-none"
                     />
                 </div>
 
-                {/* Theme Toggle */}
-                <button
-                    onClick={() => {
-                        if (theme === "Light") setTheme("Dark");
-                        else if (theme === "Dark") setTheme("System");
-                        else setTheme("Light");
-                    }}
-                    aria-label="Toggle Theme"
-                    style={{
-                        width: "38px",
-                        height: "38px",
-                        borderRadius: "10px",
-                        background: "var(--bg-card)",
-                        border: "1px solid var(--border-color)",
-                        color: "var(--text-muted)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        cursor: "pointer",
-                        transition: "all 0.2s",
-                    }}
-                    onMouseEnter={(e) => {
-                        e.currentTarget.style.color = "var(--text-primary)";
-                        e.currentTarget.style.borderColor = "var(--text-muted)";
-                    }}
-                    onMouseLeave={(e) => {
-                        e.currentTarget.style.color = "var(--text-muted)";
-                        e.currentTarget.style.borderColor = "var(--border-color)";
-                    }}
-                >
-                    {theme === "Light" ? <HiOutlineSun className="w-5 h-5 text-[#F59E0B]" /> : 
-                     theme === "Dark" ? <HiOutlineMoon className="w-5 h-5 text-gray-300" /> : 
-                     <HiOutlineDesktopComputer className="w-5 h-5" />}
-                </button>
+                {/* Theme toggle */}
+                <NavIconButton onClick={cycleTheme} aria-label="Toggle Theme" title={`Theme: ${theme}`}>
+                    {theme === "Light"  ? <HiOutlineSun className="w-[18px] h-[18px]" style={{ color: "#F59E0B" }} /> :
+                     theme === "Dark"   ? <HiOutlineMoon className="w-[18px] h-[18px]" style={{ color: "var(--text-secondary)" }} /> :
+                                          <HiOutlineDesktopComputer className="w-[18px] h-[18px]" style={{ color: "var(--text-muted)" }} />}
+                </NavIconButton>
 
                 {/* Bell */}
-                <button
-                    aria-label="Notifications"
-                    style={{
-                        width: "38px",
-                        height: "38px",
-                        borderRadius: "10px",
-                        background: "#1B1F24",
-                        border: "1px solid #2B3038",
-                        color: "#6b7280",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        cursor: "pointer",
-                        position: "relative",
-                        transition: "all 0.2s",
-                    }}
-                    onMouseEnter={(e) => {
-                        e.currentTarget.style.background = "rgba(201,138,28,0.08)";
-                        e.currentTarget.style.color = "#C98A1C";
-                        e.currentTarget.style.borderColor = "rgba(201,138,28,0.25)";
-                    }}
-                    onMouseLeave={(e) => {
-                        e.currentTarget.style.background = "#1B1F24";
-                        e.currentTarget.style.color = "#6b7280";
-                        e.currentTarget.style.borderColor = "#2B3038";
-                    }}
-                >
-                    <HiOutlineBell className="w-5 h-5" />
-                    {/* Notification dot */}
+                <NavIconButton aria-label="Notifications" title="Notifications" style={{ position: "relative" }}>
+                    <HiOutlineBell className="w-[18px] h-[18px]" style={{ color: "var(--btn-color)" }} />
                     <span
                         style={{
                             position: "absolute",
                             top: "8px",
-                            right: "9px",
+                            right: "8px",
                             width: "7px",
                             height: "7px",
                             borderRadius: "50%",
-                            background: "#C98A1C",
-                            border: "2px solid #111111",
+                            background: "var(--color-gold)",
+                            border: "2px solid var(--notif-dot-border)",
                         }}
                     />
-                </button>
+                </NavIconButton>
 
                 {/* Divider */}
-                <div
-                    style={{
-                        width: "1px",
-                        height: "24px",
-                        background: "#2B3038",
-                    }}
-                />
+                <div style={{ width: "1px", height: "24px", background: "var(--border-color)" }} />
 
                 {/* User dropdown */}
                 <div ref={dropdownRef} style={{ position: "relative" }}>
@@ -232,21 +178,16 @@ const Navbar = () => {
                             gap: "8px",
                             padding: "4px",
                             borderRadius: "50px",
-                            background: dropdownOpen ? "rgba(255,255,255,0.06)" : "transparent",
+                            background: dropdownOpen ? "var(--btn-bg)" : "transparent",
                             border: "1px solid transparent",
                             cursor: "pointer",
-                            transition: "all 0.2s",
+                            transition: "background 0.2s",
                         }}
-                        onMouseEnter={(e) => {
-                            if (!dropdownOpen) e.currentTarget.style.background = "rgba(255,255,255,0.03)";
-                        }}
-                        onMouseLeave={(e) => {
-                            if (!dropdownOpen) e.currentTarget.style.background = "transparent";
-                        }}
+                        onMouseEnter={(e) => { if (!dropdownOpen) e.currentTarget.style.background = "var(--btn-bg)"; }}
+                        onMouseLeave={(e) => { if (!dropdownOpen) e.currentTarget.style.background = "transparent"; }}
                         aria-expanded={dropdownOpen}
                         aria-haspopup="true"
                     >
-                        {/* Avatar */}
                         <div
                             style={{
                                 width: "36px",
@@ -262,10 +203,13 @@ const Navbar = () => {
                                 flexShrink: 0,
                                 boxShadow: "0 2px 10px rgba(201,138,28,0.2)",
                             }}
-                            aria-hidden
                         >
                             {initials}
                         </div>
+                        <HiOutlineChevronDown
+                            className={`w-3.5 h-3.5 transition-transform duration-200 hidden md:block ${dropdownOpen ? "rotate-180" : ""}`}
+                            style={{ color: "var(--text-muted)" }}
+                        />
                     </button>
 
                     {/* Dropdown */}
@@ -274,22 +218,22 @@ const Navbar = () => {
                             className="animate-fade-in"
                             style={{
                                 position: "absolute",
-                                top: "calc(100% + 8px)",
+                                top: "calc(100% + 10px)",
                                 right: 0,
-                                minWidth: "220px",
-                                background: "#1a1a1a",
-                                border: "1px solid rgba(255,255,255,0.1)",
-                                borderRadius: "14px",
-                                boxShadow: "0 16px 40px rgba(0,0,0,0.6)",
+                                minWidth: "230px",
+                                background: "var(--dropdown-bg)",
+                                border: "1px solid var(--dropdown-border)",
+                                borderRadius: "16px",
+                                boxShadow: "var(--dropdown-shadow)",
                                 overflow: "hidden",
                                 zIndex: 100,
                             }}
                         >
-                            {/* User info block */}
+                            {/* User info */}
                             <div
                                 style={{
                                     padding: "14px 16px",
-                                    borderBottom: "1px solid #2B3038",
+                                    borderBottom: "1px solid var(--dropdown-separator)",
                                 }}
                             >
                                 <div className="flex items-center gap-3">
@@ -310,10 +254,10 @@ const Navbar = () => {
                                         {initials}
                                     </div>
                                     <div>
-                                        <p className="text-sm font-semibold text-primary">
+                                        <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
                                             {user?.username}
                                         </p>
-                                        <p className="text-xs text-muted truncate max-w-[140px]">
+                                        <p className="text-xs truncate max-w-[140px]" style={{ color: "var(--text-muted)" }}>
                                             {user?.email}
                                         </p>
                                     </div>
@@ -340,112 +284,26 @@ const Navbar = () => {
                             </div>
 
                             {/* Menu items */}
-                            <div style={{ padding: "6px" }} className="space-y-1">
-                                <button
-                                    onClick={() => {
-                                        setDropdownOpen(false);
-                                        navigate("/profile");
-                                    }}
-                                    style={{
-                                        width: "100%",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: "10px",
-                                        padding: "8px 12px",
-                                        borderRadius: "8px",
-                                        background: "transparent",
-                                        color: "#d1d5db",
-                                        fontSize: "13px",
-                                        cursor: "pointer",
-                                        transition: "all 0.15s",
-                                        border: "none",
-                                        textAlign: "left",
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.background = "rgba(255,255,255,0.05)";
-                                        e.currentTarget.style.color = "#fff";
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.background = "transparent";
-                                        e.currentTarget.style.color = "#d1d5db";
-                                    }}
-                                >
-                                    <HiOutlineUser className="w-4 h-4 flex-shrink-0" />
-                                    My Profile
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setDropdownOpen(false);
-                                        navigate("/settings");
-                                    }}
-                                    style={{
-                                        width: "100%",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: "10px",
-                                        padding: "8px 12px",
-                                        borderRadius: "8px",
-                                        background: "transparent",
-                                        color: "#d1d5db",
-                                        fontSize: "13px",
-                                        cursor: "pointer",
-                                        transition: "all 0.15s",
-                                        border: "none",
-                                        textAlign: "left",
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.background = "rgba(255,255,255,0.05)";
-                                        e.currentTarget.style.color = "#fff";
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.background = "transparent";
-                                        e.currentTarget.style.color = "#d1d5db";
-                                    }}
-                                >
-                                    <HiOutlineCog className="w-4 h-4 flex-shrink-0" />
-                                    Settings
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setDropdownOpen(false);
-                                        navigate("/change-password");
-                                    }}
-                                    style={{
-                                        width: "100%",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: "10px",
-                                        padding: "8px 12px",
-                                        borderRadius: "8px",
-                                        background: "transparent",
-                                        color: "#d1d5db",
-                                        fontSize: "13px",
-                                        cursor: "pointer",
-                                        transition: "all 0.15s",
-                                        border: "none",
-                                        textAlign: "left",
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.background = "rgba(255,255,255,0.05)";
-                                        e.currentTarget.style.color = "#fff";
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.background = "transparent";
-                                        e.currentTarget.style.color = "#d1d5db";
-                                    }}
-                                >
-                                    <HiOutlineKey className="w-4 h-4 flex-shrink-0" />
-                                    Change Password
-                                </button>
+                            <div style={{ padding: "6px" }} className="space-y-0.5">
+                                <DropdownItem
+                                    icon={<HiOutlineUser className="w-4 h-4 flex-shrink-0" />}
+                                    label="My Profile"
+                                    onClick={() => { setDropdownOpen(false); navigate("/profile"); }}
+                                />
+                                <DropdownItem
+                                    icon={<HiOutlineCog className="w-4 h-4 flex-shrink-0" />}
+                                    label="Settings"
+                                    onClick={() => { setDropdownOpen(false); navigate("/settings"); }}
+                                />
+                                <DropdownItem
+                                    icon={<HiOutlineKey className="w-4 h-4 flex-shrink-0" />}
+                                    label="Change Password"
+                                    onClick={() => { setDropdownOpen(false); navigate("/change-password"); }}
+                                />
                             </div>
 
                             {/* Logout */}
-                            <div
-                                style={{
-                                    padding: "6px",
-                                    borderTop: "1px solid #2B3038",
-                                }}
-                            >
+                            <div style={{ padding: "6px", borderTop: "1px solid var(--dropdown-separator)" }}>
                                 <button
                                     id="navbar-logout"
                                     onClick={handleLogout}
@@ -456,39 +314,94 @@ const Navbar = () => {
                                         alignItems: "center",
                                         gap: "10px",
                                         padding: "9px 12px",
-                                        borderRadius: "8px",
+                                        borderRadius: "10px",
                                         background: "transparent",
-                                        color: "#f87171",
+                                        color: "var(--color-danger)",
                                         fontSize: "13.5px",
                                         fontWeight: "500",
                                         cursor: loggingOut ? "wait" : "pointer",
-                                        transition: "all 0.15s",
+                                        transition: "background 0.15s",
                                         border: "none",
                                         textAlign: "left",
                                         opacity: loggingOut ? 0.6 : 1,
                                     }}
-                                    onMouseEnter={(e) => {
-                                        if (!loggingOut) {
-                                            e.currentTarget.style.background = "rgba(239,68,68,0.08)";
-                                        }
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.background = "transparent";
-                                    }}
+                                    onMouseEnter={(e) => { if (!loggingOut) e.currentTarget.style.background = "color-mix(in srgb, var(--color-danger) 8%, transparent)"; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
                                 >
                                     <HiOutlineLogout className="w-4 h-4 flex-shrink-0" />
                                     {loggingOut ? "Signing out…" : "Sign Out"}
                                 </button>
                             </div>
-
                         </div>
                     )}
                 </div>
-
             </div>
-
         </header>
     );
 };
+
+// ── Reusable icon button for navbar ───────────────────────────────────────
+const NavIconButton = ({ children, style = {}, ...props }) => (
+    <button
+        {...props}
+        style={{
+            width: "38px",
+            height: "38px",
+            borderRadius: "10px",
+            background: "var(--btn-bg)",
+            border: "1px solid var(--border-color)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            position: "relative",
+            transition: "background 0.2s, border-color 0.2s",
+            ...style,
+        }}
+        onMouseEnter={(e) => {
+            e.currentTarget.style.background = "var(--btn-bg-hover)";
+            e.currentTarget.style.borderColor = "var(--border-strong)";
+        }}
+        onMouseLeave={(e) => {
+            e.currentTarget.style.background = "var(--btn-bg)";
+            e.currentTarget.style.borderColor = "var(--border-color)";
+        }}
+    >
+        {children}
+    </button>
+);
+
+// ── Reusable dropdown menu item ────────────────────────────────────────────
+const DropdownItem = ({ icon, label, onClick }) => (
+    <button
+        onClick={onClick}
+        style={{
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            padding: "8px 12px",
+            borderRadius: "10px",
+            background: "transparent",
+            color: "var(--dropdown-item-color)",
+            fontSize: "13px",
+            cursor: "pointer",
+            transition: "background 0.15s, color 0.15s",
+            border: "none",
+            textAlign: "left",
+        }}
+        onMouseEnter={(e) => {
+            e.currentTarget.style.background = "var(--dropdown-item-hover-bg)";
+            e.currentTarget.style.color = "var(--dropdown-item-hover-color)";
+        }}
+        onMouseLeave={(e) => {
+            e.currentTarget.style.background = "transparent";
+            e.currentTarget.style.color = "var(--dropdown-item-color)";
+        }}
+    >
+        {icon}
+        {label}
+    </button>
+);
 
 export default Navbar;

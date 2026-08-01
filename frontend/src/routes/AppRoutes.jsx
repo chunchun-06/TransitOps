@@ -18,6 +18,12 @@ import Users       from "../pages/users/Users";
 import ChangePassword from "../pages/auth/ChangePassword";
 import Profile     from "../pages/settings/Profile";
 import Settings    from "../pages/settings/Settings";
+// Financial Analyst – read-only module pages
+import FinanceDrivers     from "../pages/finance/FinanceDrivers";
+import FinanceTrips       from "../pages/finance/FinanceTrips";
+import FinanceMaintenance from "../pages/finance/FinanceMaintenance";
+import FinanceFuel        from "../pages/finance/FinanceFuel";
+import FinanceExpenses    from "../pages/finance/FinanceExpenses";
 
 const AppRoutes = () => {
     return (
@@ -69,13 +75,13 @@ const AppRoutes = () => {
                     } />
 
                     <Route path="/fuel" element={
-                        <RoleGuard roles={["Fleet Manager", "Financial Analyst"]}>
+                        <RoleGuard roles={["Fleet Manager"]}>
                             <Fuel />
                         </RoleGuard>
                     } />
 
                     <Route path="/expenses" element={
-                        <RoleGuard roles={["Fleet Manager", "Financial Analyst"]}>
+                        <RoleGuard roles={["Fleet Manager"]}>
                             <Expenses />
                         </RoleGuard>
                     } />
@@ -90,6 +96,37 @@ const AppRoutes = () => {
                     <Route path="/users" element={
                         <RoleGuard roles={["Fleet Manager"]}>
                             <Users />
+                        </RoleGuard>
+                    } />
+
+                    {/* Financial Analyst – read-only views */}
+                    <Route path="/finance/drivers" element={
+                        <RoleGuard roles={["Financial Analyst"]}>
+                            <FinanceDrivers />
+                        </RoleGuard>
+                    } />
+
+                    <Route path="/finance/trips" element={
+                        <RoleGuard roles={["Financial Analyst"]}>
+                            <FinanceTrips />
+                        </RoleGuard>
+                    } />
+
+                    <Route path="/finance/maintenance" element={
+                        <RoleGuard roles={["Financial Analyst"]}>
+                            <FinanceMaintenance />
+                        </RoleGuard>
+                    } />
+
+                    <Route path="/finance/fuel" element={
+                        <RoleGuard roles={["Financial Analyst"]}>
+                            <FinanceFuel />
+                        </RoleGuard>
+                    } />
+
+                    <Route path="/finance/expenses" element={
+                        <RoleGuard roles={["Financial Analyst"]}>
+                            <FinanceExpenses />
                         </RoleGuard>
                     } />
 

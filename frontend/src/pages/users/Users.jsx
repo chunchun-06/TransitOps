@@ -105,7 +105,7 @@ const Users = () => {
                                 <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider text-right">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-[#2B3038]">
+                        <tbody className="divide-y divide-border">
                             {users.length === 0 ? (
                                 <tr>
                                     <td colSpan={4} className="px-6 py-12 text-center text-muted text-sm">No users found.</td>

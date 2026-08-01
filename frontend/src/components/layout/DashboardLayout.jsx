@@ -8,12 +8,11 @@ const DashboardLayout = () => {
             style={{
                 display: "flex",
                 height: "100vh",
-                background: "#0E0F13",
-                background: "#0a0a0a",
+                background: "var(--bg-main)",
                 overflow: "hidden",
+                transition: "background 0.3s",
             }}
         >
-
             {/* Collapsible Sidebar */}
             <Sidebar />
 
@@ -34,14 +33,13 @@ const DashboardLayout = () => {
                         flex: 1,
                         overflowY: "auto",
                         padding: "28px 32px",
-                        color: "#f1f5f9",
+                        color: "var(--text-primary)",
+                        transition: "color 0.3s",
                     }}
                 >
                     <Outlet />
                 </main>
-
             </div>
-
         </div>
     );
 };

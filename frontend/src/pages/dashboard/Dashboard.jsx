@@ -8,11 +8,11 @@ import { getTrips } from "../../api/trip.api";
 
 const getStatusClasses = (status) => {
     switch (status) {
-        case "On Trip": return "bg-info text-primary";
-        case "Completed": return "bg-success text-primary";
-        case "Dispatched": return "bg-info text-[#111111]";
-        case "Draft": return "bg-[#4B5563] text-primary";
-        default: return "bg-[#4B5563] text-primary";
+        case "On Trip":    return "bg-info/15 text-info";
+        case "Completed":  return "bg-success/15 text-success";
+        case "Dispatched": return "bg-info/15 text-info";
+        case "Draft":      return "bg-secondary/10 text-secondary";
+        default:           return "bg-secondary/10 text-secondary";
     }
 };
 
@@ -65,7 +65,7 @@ const Dashboard = () => {
         { label: "Available", percentage: totalVehiclesCount > 0 ? Math.round((vehicles.filter(v => v.status === 'Available').length / totalVehiclesCount) * 100) : 0, bgClass: "bg-success" },
         { label: "On Trip", percentage: totalVehiclesCount > 0 ? Math.round((vehicles.filter(v => v.status === 'On Trip').length / totalVehiclesCount) * 100) : 0, bgClass: "bg-info" },
         { label: "In Shop", percentage: totalVehiclesCount > 0 ? Math.round((vehicles.filter(v => v.status === 'In Shop').length / totalVehiclesCount) * 100) : 0, bgClass: "bg-warning" },
-        { label: "Retired", percentage: totalVehiclesCount > 0 ? Math.round((vehicles.filter(v => v.status === 'Retired').length / totalVehiclesCount) * 100) : 0, bgClass: "bg-[#F87171]" },
+        { label: "Retired", percentage: totalVehiclesCount > 0 ? Math.round((vehicles.filter(v => v.status === 'Retired').length / totalVehiclesCount) * 100) : 0, bgClass: "bg-danger" },
     ];
 
     return (
@@ -131,7 +131,7 @@ const Dashboard = () => {
                                     <th className="px-6 py-4 text-xs font-semibold text-muted uppercase tracking-wider">ETA</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-[#2B3038]">
+                            <tbody className="divide-y divide-border">
                                 {trips.slice(0, 5).map((trip) => {
                                     const v = vehicles.find(veh => veh.id === trip.vehicle_id);
                                     const d = drivers.find(drv => drv.id === trip.driver_id);

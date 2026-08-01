@@ -140,7 +140,7 @@ const Expenses = () => {
                                         <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider text-right">Actions</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-[#2B3038]">
+                                <tbody className="divide-y divide-border">
                                     {expenses.length === 0 ? (
                                         <tr>
                                             <td colSpan={6} className="px-6 py-12 text-center text-muted text-sm">No expenses found.</td>

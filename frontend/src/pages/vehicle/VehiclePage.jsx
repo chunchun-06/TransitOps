@@ -300,7 +300,7 @@ const VehiclePage = () => {
                                 <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider text-right print:hidden">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-[#2B3038]">
+                        <tbody className="divide-y divide-border">
                             {paginatedVehicles.length === 0 ? (
                                 <tr>
                                     <td colSpan={8} className="px-6 py-12 text-center text-muted text-sm">
