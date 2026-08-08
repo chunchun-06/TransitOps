@@ -9,6 +9,8 @@ router.route('/')
     .get(driverController.getDrivers)
     .post(driverController.createDriver);
 
+router.get('/available', driverController.getAvailableDrivers);
+
 router.post('/bulk-delete', driverController.bulkDelete);
 router.patch('/bulk-status', driverController.bulkUpdateStatus);
 

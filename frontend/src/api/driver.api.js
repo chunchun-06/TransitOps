@@ -1,6 +1,7 @@
 import api from "./axios";
 
 export const getDrivers = () => api.get("/drivers");
+export const getAvailableDrivers = () => api.get("/drivers/available");
 export const getDriverById = (id) => api.get(`/drivers/${id}`);
 export const createDriver = (driver) => api.post("/drivers", driver);
 export const updateDriver = (id, driver) => api.put(`/drivers/${id}`, driver);

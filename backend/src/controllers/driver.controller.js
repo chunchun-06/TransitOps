@@ -27,6 +27,23 @@ exports.getDrivers = async (req, res) => {
     }
 };
 
+exports.getAvailableDrivers = async (req, res) => {
+    try {
+        const query = `
+            SELECT d.*, u.email 
+            FROM drivers d
+            LEFT JOIN users u ON d.user_id = u.id
+            WHERE d.status = 'Available'
+            ORDER BY d.name ASC
+        `;
+        const result = await pool.query(query);
+        res.json(result.rows);
+    } catch (err) {
+        console.error("Error in getAvailableDrivers:", err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
 exports.getDriverById = async (req, res) => {
     try {
         const { id } = req.params;
