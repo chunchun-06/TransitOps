@@ -24,6 +24,9 @@ import FinanceTrips       from "../pages/finance/FinanceTrips";
 import FinanceMaintenance from "../pages/finance/FinanceMaintenance";
 import FinanceFuel        from "../pages/finance/FinanceFuel";
 import FinanceExpenses    from "../pages/finance/FinanceExpenses";
+// Safety Officer
+import SafetyDrivers from "../pages/safety/SafetyDrivers";
+import FinancialsPage from "../pages/finance/FinancialsPage";
 
 const AppRoutes = () => {
     return (
@@ -57,8 +60,15 @@ const AppRoutes = () => {
                     } />
                     
                     <Route path="/drivers" element={
-                        <RoleGuard roles={["Fleet Manager", "Safety Officer"]}>
+                        <RoleGuard roles={["Fleet Manager"]}>
                             <Drivers />
+                        </RoleGuard>
+                    } />
+
+                    {/* Safety Officer – dedicated safety module */}
+                    <Route path="/safety/drivers" element={
+                        <RoleGuard roles={["Safety Officer"]}>
+                            <SafetyDrivers />
                         </RoleGuard>
                     } />
 
@@ -89,6 +99,12 @@ const AppRoutes = () => {
                     <Route path="/reports" element={
                         <RoleGuard roles={["Fleet Manager", "Financial Analyst"]}>
                             <Reports />
+                        </RoleGuard>
+                    } />
+
+                    <Route path="/financials" element={
+                        <RoleGuard roles={["Fleet Manager", "Financial Analyst"]}>
+                            <FinancialsPage />
                         </RoleGuard>
                     } />
 

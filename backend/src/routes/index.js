@@ -9,6 +9,8 @@ const reportRoutes = require("./report.routes");
 const tripRoutes = require("./trip.routes");
 const financeRoutes = require("./finance.routes");
 const safetyRoutes = require("./safety.routes");
+const fuelPriceRoutes = require("./fuel_price.routes");
+const analyticsRoutes = require("./analytics.routes");
 
 router.use("/auth", authRoutes);
 router.use("/users", userRoutes);
@@ -17,6 +19,8 @@ router.use("/drivers", driverRoutes);
 router.use("/reports", reportRoutes);
 router.use("/trips", tripRoutes);
 router.use("/safety", safetyRoutes);
+router.use("/fuel-price", fuelPriceRoutes);
+router.use("/analytics", analyticsRoutes);
 router.use("/", financeRoutes);
 
 module.exports = router;

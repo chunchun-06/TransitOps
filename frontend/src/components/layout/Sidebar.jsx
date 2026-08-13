@@ -15,6 +15,7 @@ import {
     HiOutlineClipboardList,
     HiOutlineUserGroup,
     HiOutlineChartBar,
+    HiOutlineShieldCheck,
 } from "react-icons/hi";
 
 // ── Role → nav items map ───────────────────────────────────────────────────
@@ -28,6 +29,7 @@ const NAV_MAP = {
         { label: "Fuel",        path: "/fuel",        Icon: HiOutlineBeaker },
         { label: "Expenses",    path: "/expenses",    Icon: HiOutlineCreditCard },
         { label: "Reports",     path: "/reports",     Icon: HiOutlineDocumentReport },
+        { label: "Financials",  path: "/financials",  Icon: HiOutlineChartBar },
         { label: "Users",       path: "/users",       Icon: HiOutlineCog },
     ],
     Dispatcher: [
@@ -35,8 +37,8 @@ const NAV_MAP = {
         { label: "Trips",     path: "/trips",     Icon: HiOutlineMap },
     ],
     "Safety Officer": [
-        { label: "Dashboard", path: "/dashboard", Icon: HiOutlineViewGrid },
-        { label: "Drivers",   path: "/drivers",   Icon: HiOutlineUsers },
+        { label: "Dashboard",       path: "/dashboard",        Icon: HiOutlineViewGrid },
+        { label: "Driver Safety",   path: "/safety/drivers",   Icon: HiOutlineShieldCheck },
     ],
     "Financial Analyst": [
         { label: "Dashboard",   path: "/dashboard",            Icon: HiOutlineViewGrid },
@@ -45,7 +47,8 @@ const NAV_MAP = {
         { label: "Maintenance", path: "/finance/maintenance",  Icon: HiOutlineClipboardList },
         { label: "Fuel",        path: "/finance/fuel",         Icon: HiOutlineBeaker },
         { label: "Expenses",    path: "/finance/expenses",     Icon: HiOutlineCreditCard },
-        { label: "Reports",     path: "/reports",              Icon: HiOutlineChartBar },
+        { label: "Reports",     path: "/reports",              Icon: HiOutlineDocumentReport },
+        { label: "Financials",  path: "/financials",  Icon: HiOutlineChartBar },
     ],
 };
 

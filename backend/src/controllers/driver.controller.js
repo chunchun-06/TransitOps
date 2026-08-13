@@ -34,6 +34,7 @@ exports.getAvailableDrivers = async (req, res) => {
             FROM drivers d
             LEFT JOIN users u ON d.user_id = u.id
             WHERE d.status = 'Available'
+              AND (d.license_expiry IS NULL OR d.license_expiry >= CURRENT_DATE)
             ORDER BY d.name ASC
         `;
         const result = await pool.query(query);

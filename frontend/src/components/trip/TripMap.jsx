@@ -228,7 +228,14 @@ const TripMap = ({
             setRouteCoords(routeRes.coords);
             setRouteInfo({ distance: routeRes.distanceKm, duration: routeRes.durationMin });
             if (onRouteCalculated) {
-              onRouteCalculated(routeRes.distanceKm);
+              onRouteCalculated({
+                distanceKm: parseFloat(routeRes.distanceKm),
+                durationMin: routeRes.durationMin,
+                sourceLat: sRes.lat,
+                sourceLng: sRes.lng,
+                destLat: dRes.lat,
+                destLng: dRes.lng
+              });
             }
           } else {
             setRouteCoords([[sRes.lat, sRes.lng], [dRes.lat, dRes.lng]]);

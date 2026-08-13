@@ -115,7 +115,7 @@ exports.deleteMaintenanceLog = async (req, res) => {
 exports.getFuelLogs = async (req, res) => {
     try {
         const query = `
-            SELECT f.id, f.trip_id, f.vehicle_id, f.fuel_amount, f.cost, f.date, v.registration_no, v.vehicle_name 
+            SELECT f.id, f.trip_id, f.vehicle_id, f.fuel_amount, f.cost, f.price_per_liter, f.fuel_type, f.date, v.registration_no, v.vehicle_name 
             FROM fuel f
             LEFT JOIN vehicles v ON f.vehicle_id = v.id
             ORDER BY f.date DESC
@@ -129,12 +129,54 @@ exports.getFuelLogs = async (req, res) => {
 };
 
 exports.createFuelLog = async (req, res) => {
-    const { vehicle_id, trip_id, fuel_amount, cost, date } = req.body;
+    const { vehicle_id, trip_id, fuel_amount, cost, price_per_liter, fuel_type, date } = req.body;
     try {
+        // Resolve fuel type and price if not provided
+        let resolvedFuelType = fuel_type || 'Diesel';
+        let resolvedPrice = price_per_liter || null;
+
+        if (vehicle_id && (!fuel_type || !price_per_liter)) {
+            const vehRes = await pool.query('SELECT fuel_type, current_fuel_level_liters, fuel_tank_capacity_liters FROM vehicles WHERE id = $1', [vehicle_id]);
+            if (vehRes.rows.length > 0) {
+                resolvedFuelType = fuel_type || vehRes.rows[0].fuel_type || 'Diesel';
+                
+                // If price is not provided, fetch current price or compute from cost/fuel_amount
+                if (!resolvedPrice) {
+                    if (cost && fuel_amount && parseFloat(fuel_amount) > 0) {
+                        resolvedPrice = Math.round((parseFloat(cost) / parseFloat(fuel_amount)) * 100) / 100;
+                    } else {
+                        const priceRes = await pool.query(
+                            `SELECT price_per_liter FROM fuel_price
+                             WHERE fuel_type = $1 AND effective_from <= CURRENT_DATE
+                             AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)
+                             ORDER BY effective_from DESC LIMIT 1`,
+                            [resolvedFuelType]
+                        );
+                        resolvedPrice = priceRes.rows.length > 0 ? parseFloat(priceRes.rows[0].price_per_liter) : 100.0;
+                    }
+                }
+
+                // Increase vehicle's current fuel level
+                const currentLiters = parseFloat(vehRes.rows[0].current_fuel_level_liters || 0);
+                const addedLiters = parseFloat(fuel_amount || 0);
+                const newLevel = Math.min(currentLiters + addedLiters, parseFloat(vehRes.rows[0].fuel_tank_capacity_liters || 999999));
+                await pool.query('UPDATE vehicles SET current_fuel_level_liters = $1 WHERE id = $2', [newLevel, vehicle_id]);
+            }
+        }
+
         const result = await pool.query(
-            `INSERT INTO fuel (vehicle_id, trip_id, fuel_amount, cost, date, created_by) 
-             VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-            [vehicle_id, trip_id || null, fuel_amount, cost, date || new Date(), req.user?.id || null]
+            `INSERT INTO fuel (vehicle_id, trip_id, fuel_amount, cost, price_per_liter, fuel_type, date, created_by) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+            [
+                vehicle_id, 
+                trip_id || null, 
+                fuel_amount, 
+                cost, 
+                resolvedPrice, 
+                resolvedFuelType, 
+                date || new Date(), 
+                req.user?.id || null
+            ]
         );
         res.status(201).json(result.rows[0]);
     } catch (err) {

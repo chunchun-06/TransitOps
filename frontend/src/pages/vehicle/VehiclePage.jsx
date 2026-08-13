@@ -10,7 +10,11 @@ const initialForm = {
     max_load_capacity: "",
     odometer: "",
     acquisition_cost: "",
-    status: "Available"
+    status: "Available",
+    fuel_type: "Diesel",
+    fuel_efficiency_kmpl: "",
+    fuel_tank_capacity_liters: "",
+    current_fuel_level_liters: ""
 };
 
 const VehiclePage = () => {
@@ -105,7 +109,11 @@ const VehiclePage = () => {
                 max_load_capacity: vehicle.max_load_capacity || "",
                 odometer: vehicle.odometer || "",
                 acquisition_cost: vehicle.acquisition_cost || "",
-                status: vehicle.status || "Available"
+                status: vehicle.status || "Available",
+                fuel_type: vehicle.fuel_type || "Diesel",
+                fuel_efficiency_kmpl: vehicle.fuel_efficiency_kmpl || "",
+                fuel_tank_capacity_liters: vehicle.fuel_tank_capacity_liters || "",
+                current_fuel_level_liters: vehicle.current_fuel_level_liters || ""
             });
             setIsModalOpen(true);
         } else if (mode === "create") {
@@ -133,6 +141,9 @@ const VehiclePage = () => {
                 max_load_capacity: form.max_load_capacity ? Number(form.max_load_capacity) : null,
                 odometer: form.odometer ? Number(form.odometer) : 0,
                 acquisition_cost: form.acquisition_cost ? Number(form.acquisition_cost) : null,
+                fuel_efficiency_kmpl: form.fuel_efficiency_kmpl ? Number(form.fuel_efficiency_kmpl) : null,
+                fuel_tank_capacity_liters: form.fuel_tank_capacity_liters ? Number(form.fuel_tank_capacity_liters) : null,
+                current_fuel_level_liters: form.current_fuel_level_liters ? Number(form.current_fuel_level_liters) : null,
             };
 
             if (modalMode === "create") {
@@ -379,8 +390,12 @@ const VehiclePage = () => {
                         <Input label="Registration No." name="registration_no" placeholder="e.g. GJ01AB4523" value={form.registration_no} onChange={handleChange} required error={formError.toLowerCase().includes("unique") ? "Registration number already exists in the system" : ""} />
                         <Input label="Vehicle Name/Model" name="vehicle_name" placeholder="e.g. VAN-05" value={form.vehicle_name} onChange={handleChange} required />
                         <Select label="Vehicle Type" name="vehicle_type" value={form.vehicle_type} onChange={handleChange} options={[{ label: "Van", value: "Van" }, { label: "Truck", value: "Truck" }, { label: "Mini", value: "Mini" }]} />
+                        <Select label="Fuel Type" name="fuel_type" value={form.fuel_type} onChange={handleChange} options={[{ label: "Diesel", value: "Diesel" }, { label: "Petrol", value: "Petrol" }, { label: "Electric", value: "Electric" }, { label: "CNG", value: "CNG" }]} />
                         <Input label="Capacity (kg)" name="max_load_capacity" type="number" placeholder="e.g. 500" value={form.max_load_capacity} onChange={handleChange} />
                         <Input label="Odometer (km)" name="odometer" type="number" placeholder="e.g. 74000" value={form.odometer} onChange={handleChange} />
+                        <Input label="Fuel Efficiency (km/L)" name="fuel_efficiency_kmpl" type="number" step="0.1" placeholder="e.g. 15.4" value={form.fuel_efficiency_kmpl} onChange={handleChange} />
+                        <Input label="Fuel Tank Capacity (L)" name="fuel_tank_capacity_liters" type="number" placeholder="e.g. 80" value={form.fuel_tank_capacity_liters} onChange={handleChange} />
+                        <Input label="Current Fuel Level (L)" name="current_fuel_level_liters" type="number" placeholder="e.g. 45" value={form.current_fuel_level_liters} onChange={handleChange} />
                         <Input label="Acquisition Cost" name="acquisition_cost" type="number" placeholder="e.g. 620000" value={form.acquisition_cost} onChange={handleChange} />
                         {modalMode === "edit" && (
                             <Select label="Status" name="status" value={form.status} onChange={handleChange} options={[{ label: "Available", value: "Available" }, { label: "On Trip", value: "On Trip" }, { label: "In Shop", value: "In Shop" }, { label: "Retired", value: "Retired" }]} className="md:col-span-2" />
@@ -423,7 +438,7 @@ const VehiclePage = () => {
                             </div>
 
                             <div className="space-y-4">
-                                <h3 className="text-[10px] font-bold text-muted uppercase tracking-widest border-b border-border pb-2">Specifications</h3>
+                                <h3 className="text-[10px] font-bold text-muted uppercase tracking-widest border-b border-border pb-2">Specifications & Fuel</h3>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="bg-card p-4 rounded-xl border border-border">
                                         <p className="text-xs text-muted mb-1">Vehicle Type</p>
@@ -432,6 +447,22 @@ const VehiclePage = () => {
                                     <div className="bg-card p-4 rounded-xl border border-border">
                                         <p className="text-xs text-muted mb-1">Max Capacity</p>
                                         <p className="text-sm font-semibold text-primary">{selectedVehicleDetails.max_load_capacity ? `${selectedVehicleDetails.max_load_capacity} kg` : "—"}</p>
+                                    </div>
+                                    <div className="bg-card p-4 rounded-xl border border-border">
+                                        <p className="text-xs text-muted mb-1">Fuel Type</p>
+                                        <p className="text-sm font-semibold text-primary">{selectedVehicleDetails.fuel_type || "Diesel"}</p>
+                                    </div>
+                                    <div className="bg-card p-4 rounded-xl border border-border">
+                                        <p className="text-xs text-muted mb-1">Fuel Efficiency</p>
+                                        <p className="text-sm font-semibold text-primary">{selectedVehicleDetails.fuel_efficiency_kmpl ? `${selectedVehicleDetails.fuel_efficiency_kmpl} km/L` : "—"}</p>
+                                    </div>
+                                    <div className="bg-card p-4 rounded-xl border border-border">
+                                        <p className="text-xs text-muted mb-1">Tank Capacity</p>
+                                        <p className="text-sm font-semibold text-primary">{selectedVehicleDetails.fuel_tank_capacity_liters ? `${selectedVehicleDetails.fuel_tank_capacity_liters} L` : "—"}</p>
+                                    </div>
+                                    <div className="bg-card p-4 rounded-xl border border-border">
+                                        <p className="text-xs text-muted mb-1">Current Fuel Level</p>
+                                        <p className="text-sm font-semibold text-primary">{selectedVehicleDetails.current_fuel_level_liters ? `${selectedVehicleDetails.current_fuel_level_liters} L` : "0 L"}</p>
                                     </div>
                                 </div>
                             </div>
