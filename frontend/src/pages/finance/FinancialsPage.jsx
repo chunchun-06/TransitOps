@@ -7,8 +7,6 @@ import {
     HiOutlineBeaker,
     HiOutlineCalendar,
     HiOutlineTrendingUp,
-    HiOutlineRefresh,
-    HiOutlinePlus,
     HiOutlineFilter
 } from "react-icons/hi";
 import { 
@@ -27,7 +25,6 @@ import {
     Line 
 } from "recharts";
 import { getFinancialAnalytics } from "../../api/analytics.api";
-import { getCurrentFuelPrice, getFuelPriceHistory, createFuelPrice } from "../../api/fuel_price.api";
 import { Button, Input, Select, Badge } from "../../components/common";
 
 const COLORS = ["#10B981", "#3B82F6", "#F59E0B", "#8B5CF6", "#EF4444", "#EC4899"];
@@ -42,22 +39,6 @@ const FinancialsPage = () => {
     const [period, setPeriod] = useState("This Month");
     const [startDate, setStartDate] = useState("");
     const [endDate, setEndDate] = useState("");
-
-    // Fuel price states
-    const [fuelPrices, setFuelPrices] = useState({
-        Diesel: 0,
-        Petrol: 0,
-        CNG: 0,
-        Electric: 0
-    });
-    const [priceHistory, setPriceHistory] = useState([]);
-    const [updatingPrice, setUpdatingPrice] = useState(false);
-    const [priceForm, setPriceForm] = useState({
-        fuel_type: "Diesel",
-        price_per_liter: "",
-        effective_date: new Date().toISOString().split("T")[0]
-    });
-    const [priceFormError, setPriceFormError] = useState("");
 
     // Fetch primary financial analytics
     const fetchAnalytics = async () => {
@@ -79,65 +60,9 @@ const FinancialsPage = () => {
         }
     };
 
-    // Fetch current fuel prices for all types
-    const fetchFuelPrices = async () => {
-        try {
-            const types = ["Diesel", "Petrol", "CNG", "Electric"];
-            const priceObj = {};
-            
-            await Promise.all(
-                types.map(async (t) => {
-                    try {
-                        const res = await getCurrentFuelPrice(t);
-                        priceObj[t] = res.data?.price_per_liter || 0;
-                    } catch (e) {
-                        priceObj[t] = 0;
-                    }
-                })
-            );
-            setFuelPrices(priceObj);
-
-            const histRes = await getFuelPriceHistory();
-            setPriceHistory(histRes.data || []);
-        } catch (err) {
-            console.error("Failed to fetch fuel prices", err);
-        }
-    };
-
     useEffect(() => {
         fetchAnalytics();
     }, [period, startDate, endDate]);
-
-    useEffect(() => {
-        fetchFuelPrices();
-    }, []);
-
-    // Handle fuel price submission
-    const handlePriceSubmit = async (e) => {
-        e.preventDefault();
-        setPriceFormError("");
-        setUpdatingPrice(true);
-        try {
-            if (!priceForm.price_per_liter || Number(priceForm.price_per_liter) <= 0) {
-                throw new Error("Please enter a valid price greater than zero");
-            }
-            await createFuelPrice({
-                fuel_type: priceForm.fuel_type,
-                price_per_liter: Number(priceForm.price_per_liter),
-                effective_date: priceForm.effective_date
-            });
-            // Refresh
-            await fetchFuelPrices();
-            setPriceForm({
-                ...priceForm,
-                price_per_liter: ""
-            });
-        } catch (err) {
-            setPriceFormError(err.message || err.response?.data?.message || "Failed to update fuel price");
-        } finally {
-            setUpdatingPrice(false);
-        }
-    };
 
     const formatCurrency = (val) => {
         return new Intl.NumberFormat("en-IN", {
@@ -164,13 +89,6 @@ const FinancialsPage = () => {
     const categoryBreakdown = analytics?.categoryBreakdown || [];
     const trendData = analytics?.trendData || [];
     const vehicleRankings = analytics?.vehicleRankings || [];
-
-    // Construct fuel history chart data
-    const chartHistoryData = priceHistory.slice(0, 15).reverse().map(h => ({
-        date: new Date(h.effective_date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-        price: parseFloat(h.price_per_liter),
-        type: h.fuel_type
-    }));
 
     return (
         <div className="animate-fade-in-up space-y-6 max-w-[1600px] mx-auto text-primary pb-12">
@@ -398,11 +316,11 @@ const FinancialsPage = () => {
                 </div>
             </div>
 
-            {/* Performance Ranking Table & Fuel pricing controls */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Performance Ranking Table */}
+            <div className="grid grid-cols-1 gap-6">
                 
-                {/* Vehicle Rankings (2/3 width) */}
-                <div className="lg:col-span-2 bg-card border border-border rounded-xl p-5 shadow-soft flex flex-col justify-between">
+                {/* Vehicle Rankings (Full width) */}
+                <div className="bg-card border border-border rounded-xl p-5 shadow-soft flex flex-col justify-between">
                     <div>
                         <div className="flex justify-between items-center mb-4">
                             <div>
@@ -460,73 +378,6 @@ const FinancialsPage = () => {
                             </table>
                         </div>
                     </div>
-                </div>
-
-                {/* Fuel Price Controls & History (1/3 width) */}
-                <div className="bg-card border border-border rounded-xl p-5 shadow-soft space-y-6">
-                    <div>
-                        <h3 className="text-sm font-bold text-primary">Fuel Pricing Controller</h3>
-                        <p className="text-xs text-secondary">Update and lock daily base rates for automated trip calculations</p>
-                    </div>
-
-                    {/* Current base rates */}
-                    <div className="grid grid-cols-2 gap-3">
-                        {Object.entries(fuelPrices).map(([type, price]) => (
-                            <div key={type} className="bg-[#1A1F26] p-3 rounded-lg border border-[#2B3038] flex flex-col justify-between relative overflow-hidden group">
-                                <div className="absolute right-2 top-2 text-[#C98A1C]/10 group-hover:text-[#C98A1C]/20 transition-colors">
-                                    <HiOutlineBeaker className="w-8 h-8" />
-                                </div>
-                                <span className="text-[10px] text-secondary font-bold uppercase">{type}</span>
-                                <span className="text-lg font-black text-primary mt-1">₹{parseFloat(price).toFixed(2)}<span className="text-[10px] font-normal text-muted">/L</span></span>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Price update form */}
-                    <form onSubmit={handlePriceSubmit} className="space-y-4 pt-2 border-t border-[#2B3038]">
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted">Log Price Update</h4>
-                        {priceFormError && (
-                            <div className="bg-danger/10 border border-danger/20 text-danger text-[11px] p-2 rounded">
-                                {priceFormError}
-                            </div>
-                        )}
-                        <div className="grid grid-cols-2 gap-3">
-                            <Select
-                                label="Fuel Type"
-                                name="fuel_type"
-                                value={priceForm.fuel_type}
-                                onChange={(e) => setPriceForm({ ...priceForm, fuel_type: e.target.value })}
-                                options={[
-                                    { label: "Diesel", value: "Diesel" },
-                                    { label: "Petrol", value: "Petrol" },
-                                    { label: "CNG", value: "CNG" },
-                                    { label: "Electric", value: "Electric" }
-                                ]}
-                            />
-                            <Input
-                                label="Rate (INR/L)"
-                                name="price_per_liter"
-                                type="number"
-                                step="0.01"
-                                placeholder="e.g. 96.50"
-                                value={priceForm.price_per_liter}
-                                onChange={(e) => setPriceForm({ ...priceForm, price_per_liter: e.target.value })}
-                                required
-                            />
-                        </div>
-                        <Input
-                            label="Effective Date"
-                            name="effective_date"
-                            type="date"
-                            value={priceForm.effective_date}
-                            onChange={(e) => setPriceForm({ ...priceForm, effective_date: e.target.value })}
-                            required
-                        />
-                        <Button type="submit" className="w-full justify-center" disabled={updatingPrice}>
-                            <HiOutlinePlus className="w-4 h-4 mr-1.5" />
-                            {updatingPrice ? "Publishing..." : "Publish Pricing"}
-                        </Button>
-                    </form>
                 </div>
             </div>
         </div>

@@ -28,6 +28,8 @@ import FinanceExpenses    from "../pages/finance/FinanceExpenses";
 import SafetyDrivers from "../pages/safety/SafetyDrivers";
 import FinancialsPage from "../pages/finance/FinancialsPage";
 
+import { FleetProvider } from "../context/FleetContext";
+
 const AppRoutes = () => {
     return (
         <BrowserRouter>
@@ -43,7 +45,9 @@ const AppRoutes = () => {
                 <Route
                     element={
                         <ProtectedRoute>
-                            <DashboardLayout />
+                            <FleetProvider>
+                                <DashboardLayout />
+                            </FleetProvider>
                         </ProtectedRoute>
                     }
                 >
@@ -54,13 +58,13 @@ const AppRoutes = () => {
 
                     {/* Feature routes with RoleGuard */}
                     <Route path="/vehicles" element={
-                        <RoleGuard roles={["Fleet Manager"]}>
+                        <RoleGuard roles={["Fleet Manager", "Dispatcher", "Admin"]}>
                             <Vehicles />
                         </RoleGuard>
                     } />
                     
                     <Route path="/drivers" element={
-                        <RoleGuard roles={["Fleet Manager"]}>
+                        <RoleGuard roles={["Fleet Manager", "Dispatcher", "Admin"]}>
                             <Drivers />
                         </RoleGuard>
                     } />

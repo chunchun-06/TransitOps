@@ -39,7 +39,8 @@ exports.createVehicle = async (req, res) => {
         const {
             registration_no, vehicle_name, vehicle_type, max_load_capacity,
             odometer, acquisition_cost, status,
-            fuel_type, fuel_efficiency_kmpl, fuel_tank_capacity_liters, current_fuel_level_liters
+            fuel_type, fuel_efficiency_kmpl, fuel_tank_capacity_liters, current_fuel_level_liters,
+            engine_cc, purchase_year
         } = req.body;
 
         // Duplicate check
@@ -59,8 +60,9 @@ exports.createVehicle = async (req, res) => {
             `INSERT INTO vehicles (
                 registration_no, vehicle_name, vehicle_type, max_load_capacity, odometer,
                 acquisition_cost, status, created_by,
-                fuel_type, fuel_efficiency_kmpl, fuel_tank_capacity_liters, current_fuel_level_liters
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+                fuel_type, fuel_efficiency_kmpl, fuel_tank_capacity_liters, current_fuel_level_liters,
+                engine_cc, purchase_year
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
             [
                 registration_no, vehicle_name, vehicle_type,
                 max_load_capacity || null, odometer || 0, acquisition_cost || null,
@@ -68,7 +70,9 @@ exports.createVehicle = async (req, res) => {
                 fuel_type || 'Diesel',
                 fuel_efficiency_kmpl ? Number(fuel_efficiency_kmpl) : null,
                 tankCap,
-                fuelLevel
+                fuelLevel,
+                engine_cc ? parseInt(engine_cc) : null,
+                purchase_year ? parseInt(purchase_year) : null
             ]
         );
         res.status(201).json(result.rows[0]);
@@ -87,7 +91,8 @@ exports.updateVehicle = async (req, res) => {
         const {
             registration_no, vehicle_name, vehicle_type, max_load_capacity,
             odometer, acquisition_cost, status,
-            fuel_type, fuel_efficiency_kmpl, fuel_tank_capacity_liters, current_fuel_level_liters
+            fuel_type, fuel_efficiency_kmpl, fuel_tank_capacity_liters, current_fuel_level_liters,
+            engine_cc, purchase_year
         } = req.body;
 
         // Duplicate check for other vehicles
@@ -106,8 +111,9 @@ exports.updateVehicle = async (req, res) => {
             `UPDATE vehicles
              SET registration_no = $1, vehicle_name = $2, vehicle_type = $3, max_load_capacity = $4,
                  odometer = $5, acquisition_cost = $6, status = $7, updated_at = CURRENT_TIMESTAMP, updated_by = $8,
-                 fuel_type = $9, fuel_efficiency_kmpl = $10, fuel_tank_capacity_liters = $11, current_fuel_level_liters = $12
-             WHERE id = $13 RETURNING *`,
+                 fuel_type = $9, fuel_efficiency_kmpl = $10, fuel_tank_capacity_liters = $11, current_fuel_level_liters = $12,
+                 engine_cc = $13, purchase_year = $14
+             WHERE id = $15 RETURNING *`,
             [
                 registration_no, vehicle_name, vehicle_type,
                 max_load_capacity || null, odometer || 0, acquisition_cost || null,
@@ -116,6 +122,8 @@ exports.updateVehicle = async (req, res) => {
                 fuel_efficiency_kmpl ? Number(fuel_efficiency_kmpl) : null,
                 tankCap,
                 fuelLevel,
+                engine_cc ? parseInt(engine_cc) : null,
+                purchase_year ? parseInt(purchase_year) : null,
                 id
             ]
         );

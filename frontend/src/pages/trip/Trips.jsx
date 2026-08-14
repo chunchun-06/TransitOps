@@ -15,8 +15,10 @@ import { getTrips, createTrip, updateTrip } from "../../api/trip.api";
 import { getVehicles, getAvailableVehicles } from "../../api/vehicle.api";
 import { getDrivers, getAvailableDrivers } from "../../api/driver.api";
 import { getCurrentFuelPrice } from "../../api/fuel_price.api";
+import { getTollEstimate } from "../../api/toll_rate.api";
 import { Input, Select, Button, Badge, Modal } from "../../components/common";
 import TripMap from "../../components/trip/TripMap";
+import { useFleet } from "../../context/FleetContext";
 
 const initialForm = {
     source: "",
@@ -30,7 +32,8 @@ const initialForm = {
     source_longitude: "",
     destination_latitude: "",
     destination_longitude: "",
-    current_fuel_liters: ""
+    current_fuel_liters: "",
+    toll_amount: ""
 };
 
 const STEPS = [
@@ -41,6 +44,7 @@ const STEPS = [
 ];
 
 const Trips = () => {
+    const fleetCtx = useFleet();
     const [trips, setTrips] = useState([]);
     const [statusFilter, setStatusFilter] = useState("All");
     const [vehicles, setVehicles] = useState([]);
@@ -77,9 +81,12 @@ const Trips = () => {
         actual_distance: "",
         final_odometer: "",
         actual_fuel_consumed: "",
-        revenue: ""
+        revenue: "",
+        toll_amount: ""
     });
     const [completeError, setCompleteError] = useState("");
+    const [tollsDetected, setTollsDetected] = useState([]);
+    const [tollEstimateMsg, setTollEstimateMsg] = useState("");
     const [completeLoading, setCompleteLoading] = useState(false);
 
     const fetchData = async () => {
@@ -172,6 +179,41 @@ const Trips = () => {
         });
     }, [form.vehicle_id, form.planned_distance, form.current_fuel_liters, fuelPrice, availableVehicles]);
 
+    // Fetch toll estimate when source, destination, vehicle, or distance changes
+    useEffect(() => {
+        const fetchTolls = async () => {
+            if (!form.source || !form.destination || !form.vehicle_id) {
+                setTollsDetected([]);
+                setTollEstimateMsg("");
+                return;
+            }
+            const veh = availableVehicles.find(v => v.id.toString() === form.vehicle_id.toString());
+            const vClass = veh?.vehicle_type || 'Truck'; // fallback
+            try {
+                const res = await getTollEstimate({
+                    source: form.source,
+                    destination: form.destination,
+                    vehicle_class: vClass,
+                    planned_distance: form.planned_distance || undefined
+                });
+                if (res.data) {
+                    setTollsDetected(res.data.tolls_detected || []);
+                    setForm(prev => ({
+                        ...prev,
+                        toll_amount: res.data.total_toll_amount !== undefined ? res.data.total_toll_amount.toString() : prev.toll_amount
+                    }));
+                    setTollEstimateMsg(res.data.message || "");
+                }
+            } catch (err) {
+                console.error("Error fetching toll estimate:", err);
+                setTollsDetected([]);
+                setTollEstimateMsg("Toll detected — exact rate unavailable.");
+            }
+        };
+        const timer = setTimeout(fetchTolls, 600);
+        return () => clearTimeout(timer);
+    }, [form.source, form.destination, form.vehicle_id, form.planned_distance, availableVehicles]);
+
     const handleChange = (e) => {
         setForm({ ...form, [e.target.name]: e.target.value });
     };
@@ -235,6 +277,7 @@ const Trips = () => {
                 planned_distance: Number(form.planned_distance),
                 estimated_duration_min: form.estimated_duration_min ? Number(form.estimated_duration_min) : null,
                 current_fuel_liters: form.current_fuel_liters ? Number(form.current_fuel_liters) : null,
+                toll_amount: form.toll_amount ? Number(form.toll_amount) : 0,
                 source_latitude: form.source_latitude ? Number(form.source_latitude) : null,
                 source_longitude: form.source_longitude ? Number(form.source_longitude) : null,
                 destination_latitude: form.destination_latitude ? Number(form.destination_latitude) : null,
@@ -244,12 +287,20 @@ const Trips = () => {
             const createdRes = await createTrip(payload);
             if (createdRes.data && createdRes.data.id) {
                 setSelectedTripId(createdRes.data.id);
+                if (fleetCtx?.addTripToState) {
+                    fleetCtx.addTripToState(createdRes.data);
+                }
             }
             setForm(initialForm);
             setDraftSource(null);
             setDraftDestination(null);
             setSelectingMode(null);
-            fetchData();
+            setTollsDetected([]);
+            setTollEstimateMsg("");
+            await fetchData();
+            if (fleetCtx?.fetchFleetData) {
+                fleetCtx.fetchFleetData();
+            }
         } catch (err) {
             setErrorMsg(err.response?.data?.message || "Failed to dispatch trip");
         } finally {
@@ -263,6 +314,8 @@ const Trips = () => {
         setDraftDestination(null);
         setSelectingMode(null);
         setErrorMsg("");
+        setTollsDetected([]);
+        setTollEstimateMsg("");
     };
 
     // Open Complete Modal
@@ -273,7 +326,8 @@ const Trips = () => {
             actual_distance: trip.planned_distance || "",
             final_odometer: v ? (parseFloat(v.odometer || 0) + parseFloat(trip.planned_distance || 0)).toString() : "",
             actual_fuel_consumed: trip.estimated_fuel_liters || "",
-            revenue: trip.revenue || ""
+            revenue: trip.revenue || "",
+            toll_amount: trip.toll_amount || ""
         });
         setCompleteError("");
         setIsCompleteModalOpen(true);
@@ -297,17 +351,25 @@ const Trips = () => {
             setCompleteLoading(true);
             setCompleteError("");
 
-            await updateTrip(tripToComplete.id, {
+            const res = await updateTrip(tripToComplete.id, {
                 status: "Completed",
                 actual_distance: Number(completeForm.actual_distance),
                 final_odometer: finalOdo,
                 actual_fuel_consumed: Number(completeForm.actual_fuel_consumed),
-                revenue: completeForm.revenue ? Number(completeForm.revenue) : null
+                revenue: completeForm.revenue ? Number(completeForm.revenue) : null,
+                toll_amount: completeForm.toll_amount ? Number(completeForm.toll_amount) : null
             });
+
+            if (fleetCtx?.updateTripInState && res?.data) {
+                fleetCtx.updateTripInState(res.data);
+            }
 
             setIsCompleteModalOpen(false);
             setTripToComplete(null);
-            fetchData();
+            await fetchData();
+            if (fleetCtx?.fetchFleetData) {
+                fleetCtx.fetchFleetData();
+            }
         } catch (err) {
             setCompleteError(err.response?.data?.message || "Failed to complete trip");
         } finally {
@@ -475,6 +537,22 @@ const Trips = () => {
                                 value={form.planned_distance} 
                                 onChange={handleChange} 
                             />
+                            
+                            <div className="flex flex-col gap-1.5">
+                                <Input 
+                                    label="Toll Amount (₹)" 
+                                    name="toll_amount" 
+                                    type="number" 
+                                    placeholder="Auto-estimated or enter manually" 
+                                    value={form.toll_amount} 
+                                    onChange={handleChange} 
+                                />
+                                {tollEstimateMsg && (
+                                    <p className="text-[11.5px] text-accent font-medium -mt-2">
+                                        {tollEstimateMsg}
+                                    </p>
+                                )}
+                            </div>
 
                             {/* Fuel Panel - STEP 5 */}
                             {selectedVehicleForForm && (
@@ -568,11 +646,19 @@ const Trips = () => {
                                             <span className="text-primary font-semibold">{form.cargo_weight} kg</span>
                                         </div>
                                         {fuelPanelData.estimatedRequired > 0 && (
-                                            <div className="flex justify-between text-accent font-semibold pt-1 border-t border-accent/10">
+                                            <div className="flex justify-between text-secondary font-medium pt-1 border-t border-accent/10">
                                                 <span>Est. Fuel Cost:</span>
-                                                <span>₹{fuelPanelData.estimatedCost.toLocaleString()}</span>
+                                                <span className="text-primary font-semibold">₹{fuelPanelData.estimatedCost.toLocaleString()}</span>
                                             </div>
                                         )}
+                                        <div className="flex justify-between text-secondary font-medium">
+                                            <span>Est. Toll Cost:</span>
+                                            <span className="text-primary font-semibold">₹{Number(form.toll_amount || 0).toLocaleString()}</span>
+                                        </div>
+                                        <div className="flex justify-between text-accent font-bold pt-1 border-t border-accent/20">
+                                            <span>Est. Total Cost:</span>
+                                            <span>₹{(Number(fuelPanelData.estimatedCost || 0) + Number(form.toll_amount || 0)).toLocaleString()}</span>
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -751,8 +837,14 @@ const Trips = () => {
                                                                     e.stopPropagation();
                                                                     if (!window.confirm("Are you sure you want to cancel this trip?")) return;
                                                                     try {
-                                                                        await updateTrip(trip.id, { ...trip, status: "Cancelled" });
-                                                                        fetchData();
+                                                                        const res = await updateTrip(trip.id, { ...trip, status: "Cancelled" });
+                                                                        if (fleetCtx?.updateTripInState && res?.data) {
+                                                                            fleetCtx.updateTripInState(res.data);
+                                                                        }
+                                                                        await fetchData();
+                                                                        if (fleetCtx?.fetchFleetData) {
+                                                                            fleetCtx.fetchFleetData();
+                                                                        }
                                                                     } catch (e) { alert("Failed to cancel trip"); }
                                                                 }}
                                                             >
@@ -841,6 +933,14 @@ const Trips = () => {
                             placeholder="e.g. 15000"
                             value={completeForm.revenue}
                             onChange={(e) => setCompleteForm({...completeForm, revenue: e.target.value})}
+                        />
+                        <Input 
+                            label="Actual Toll Paid (₹)"
+                            name="toll_amount"
+                            type="number"
+                            placeholder={tripToComplete?.toll_amount ? `Est: ₹${tripToComplete.toll_amount}` : "e.g. 250"}
+                            value={completeForm.toll_amount}
+                            onChange={(e) => setCompleteForm({...completeForm, toll_amount: e.target.value})}
                         />
                     </div>
                 </form>

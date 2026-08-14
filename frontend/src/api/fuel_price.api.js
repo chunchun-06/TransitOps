@@ -14,3 +14,7 @@ export const updateFuelPrice = (id, data) =>
 
 export const deleteFuelPrice = (id) => 
     api.delete(`/fuel-price/${id}`);
+
+export const getMarketFuelRates = () =>
+    api.get("/market-fuel/rates");
+

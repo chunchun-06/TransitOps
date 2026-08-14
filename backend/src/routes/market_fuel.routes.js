@@ -1,10 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const dashboardController = require('../controllers/dashboard.controller');
+const { getMarketRates } = require('../controllers/market_fuel.controller');
 const authenticate = require('../middlewares/auth.middleware');
 
 router.use(authenticate);
 
-router.get('/', dashboardController.getDashboardData);
+// GET /api/market-fuel/rates
+router.get('/rates', getMarketRates);
 
 module.exports = router;

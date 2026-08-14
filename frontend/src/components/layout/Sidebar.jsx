@@ -34,7 +34,9 @@ const NAV_MAP = {
     ],
     Dispatcher: [
         { label: "Dashboard", path: "/dashboard", Icon: HiOutlineViewGrid },
-        { label: "Trips",     path: "/trips",     Icon: HiOutlineMap },
+        { label: "Vehicles",    path: "/vehicles",    Icon: HiOutlineTruck },
+        { label: "Drivers",     path: "/drivers",     Icon: HiOutlineUsers },
+        { label: "Trips",       path: "/trips",       Icon: HiOutlineMap },
     ],
     "Safety Officer": [
         { label: "Dashboard",       path: "/dashboard",        Icon: HiOutlineViewGrid },

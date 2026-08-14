@@ -55,7 +55,7 @@ exports.createTrip = async (req, res) => {
         vehicle_id, driver_id, source, destination, cargo_weight,
         source_latitude, source_longitude, destination_latitude, destination_longitude,
         planned_distance, estimated_duration_min,
-        current_fuel_liters
+        current_fuel_liters, toll_amount
     } = req.body;
 
     if (!vehicle_id || !driver_id) {
@@ -80,7 +80,7 @@ exports.createTrip = async (req, res) => {
 
         // 1. Validate vehicle
         const vRes = await pool.query(
-            'SELECT id, registration_no, vehicle_name, status, fuel_efficiency_kmpl, fuel_tank_capacity_liters, current_fuel_level_liters, fuel_type FROM vehicles WHERE id = $1 FOR UPDATE',
+            'SELECT id, registration_no, vehicle_name, status, fuel_efficiency_kmpl, fuel_tank_capacity_liters, current_fuel_level_liters, fuel_type, odometer FROM vehicles WHERE id = $1 FOR UPDATE',
             [vehicle_id]
         );
         if (vRes.rows.length === 0) {
@@ -163,6 +163,11 @@ exports.createTrip = async (req, res) => {
             estimatedFuelCost = Math.round(additionalFuel * fuelPrice * 100) / 100;
         }
 
+        const startOdometer = vehicle.odometer ? parseFloat(vehicle.odometer) : 0;
+        const toll = toll_amount ? parseFloat(toll_amount) : 0;
+        const estFuelCost = estimatedFuelCost || 0;
+        const totalTripCost = estFuelCost + toll;
+
         // 4. Create trip
         const insertQuery = `
             INSERT INTO trips (
@@ -171,9 +176,10 @@ exports.createTrip = async (req, res) => {
                 source_latitude, source_longitude, destination_latitude, destination_longitude,
                 estimated_fuel_liters, current_fuel_liters, additional_fuel_required_liters,
                 estimated_fuel_cost, fuel_price_per_liter,
-                status, created_by, start_time
+                status, created_by, start_time,
+                start_odometer, toll_amount, total_trip_cost
             )
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'Dispatched',$17,CURRENT_TIMESTAMP)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'Dispatched',$17,CURRENT_TIMESTAMP,$18,$19,$20)
             RETURNING *
         `;
         const result = await pool.query(insertQuery, [
@@ -191,7 +197,10 @@ exports.createTrip = async (req, res) => {
             additionalFuel,
             estimatedFuelCost,
             fuelPrice,
-            createdBy
+            createdBy,
+            startOdometer,
+            toll,
+            totalTripCost
         ]);
 
         // 5. Update vehicle and driver status + vehicle fuel level
@@ -225,7 +234,7 @@ exports.createTrip = async (req, res) => {
 
 exports.updateTrip = async (req, res) => {
     const { id } = req.params;
-    const { status, actual_distance, final_odometer, fuel_used, revenue, actual_fuel_consumed } = req.body;
+    const { status, actual_distance, final_odometer, fuel_used, revenue, actual_fuel_consumed, toll_amount } = req.body;
 
     try {
         await pool.query('BEGIN');
@@ -237,17 +246,41 @@ exports.updateTrip = async (req, res) => {
         }
 
         const oldStatus = currentTrip.rows[0].status;
+        if (oldStatus === 'Completed' || oldStatus === 'Cancelled') {
+            await pool.query('ROLLBACK');
+            return res.status(400).json({ message: `Trip is already in ${oldStatus} state and cannot be modified.` });
+        }
+
         const vehicle_id = currentTrip.rows[0].vehicle_id;
         const driver_id = currentTrip.rows[0].driver_id;
         const isEnding = status === 'Completed' || status === 'Cancelled';
         const endTimeClause = isEnding ? ', end_time = CURRENT_TIMESTAMP' : '';
 
-        // Calculate actual fuel cost if completing with actual fuel data
+        // Fallbacks for completion metrics
+        const plannedDistance = currentTrip.rows[0].planned_distance || 0;
+        const finalActualDistance = (status === 'Completed')
+            ? (actual_distance !== undefined && actual_distance !== null && actual_distance !== '' ? parseFloat(actual_distance) : parseFloat(plannedDistance))
+            : (actual_distance !== undefined && actual_distance !== null ? parseFloat(actual_distance) : null);
+
+        const startOdoVal = currentTrip.rows[0].start_odometer ? parseFloat(currentTrip.rows[0].start_odometer) : 0;
+        const finalOdometerVal = (status === 'Completed')
+            ? (final_odometer !== undefined && final_odometer !== null && final_odometer !== '' ? parseFloat(final_odometer) : startOdoVal + finalActualDistance)
+            : (final_odometer !== undefined && final_odometer !== null ? parseFloat(final_odometer) : null);
+
         const actualFuelConsumed = actual_fuel_consumed ? parseFloat(actual_fuel_consumed) : (fuel_used ? parseFloat(fuel_used) : null);
         let actualFuelCost = null;
         const fuelPriceUsed = currentTrip.rows[0].fuel_price_per_liter;
         if (status === 'Completed' && actualFuelConsumed !== null && fuelPriceUsed) {
             actualFuelCost = Math.round(actualFuelConsumed * parseFloat(fuelPriceUsed) * 100) / 100;
+        }
+
+        const finalTollAmount = toll_amount !== undefined && toll_amount !== null && toll_amount !== ''
+            ? parseFloat(toll_amount)
+            : parseFloat(currentTrip.rows[0].toll_amount || 0);
+
+        let totalTripCost = null;
+        if (status === 'Completed') {
+            totalTripCost = (actualFuelCost || 0) + finalTollAmount;
         }
 
         const updateQuery = `
@@ -258,30 +291,34 @@ exports.updateTrip = async (req, res) => {
                 fuel_used = COALESCE($4, fuel_used),
                 revenue = COALESCE($5, revenue),
                 actual_fuel_cost = COALESCE($6, actual_fuel_cost),
+                toll_amount = COALESCE($7, toll_amount),
+                total_trip_cost = COALESCE($8, total_trip_cost),
                 updated_at = CURRENT_TIMESTAMP
                 ${endTimeClause}
-            WHERE id = $7 RETURNING *
+            WHERE id = $9 RETURNING *
         `;
         const result = await pool.query(updateQuery, [
             status,
-            actual_distance || null,
-            final_odometer || null,
+            finalActualDistance,
+            finalOdometerVal,
             actualFuelConsumed,
             revenue || null,
             actualFuelCost,
+            finalTollAmount,
+            totalTripCost,
             id
         ]);
 
         // Status transitions
-        if (oldStatus !== 'Completed' && oldStatus !== 'Cancelled' && isEnding) {
+        if (isEnding) {
             await pool.query("UPDATE vehicles SET status = 'Available', updated_at = CURRENT_TIMESTAMP WHERE id = $1", [vehicle_id]);
             await pool.query("UPDATE drivers SET status = 'Available', updated_at = CURRENT_TIMESTAMP WHERE id = $1", [driver_id]);
 
             // On completion: update odometer and auto-create fuel log
-            if (status === 'Completed' && final_odometer) {
+            if (status === 'Completed' && finalOdometerVal) {
                 await pool.query(
                     'UPDATE vehicles SET odometer = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-                    [parseFloat(final_odometer), vehicle_id]
+                    [finalOdometerVal, vehicle_id]
                 );
             }
 

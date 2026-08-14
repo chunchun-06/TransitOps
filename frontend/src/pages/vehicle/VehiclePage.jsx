@@ -14,7 +14,9 @@ const initialForm = {
     fuel_type: "Diesel",
     fuel_efficiency_kmpl: "",
     fuel_tank_capacity_liters: "",
-    current_fuel_level_liters: ""
+    current_fuel_level_liters: "",
+    engine_cc: "",
+    purchase_year: ""
 };
 
 const VehiclePage = () => {
@@ -113,7 +115,9 @@ const VehiclePage = () => {
                 fuel_type: vehicle.fuel_type || "Diesel",
                 fuel_efficiency_kmpl: vehicle.fuel_efficiency_kmpl || "",
                 fuel_tank_capacity_liters: vehicle.fuel_tank_capacity_liters || "",
-                current_fuel_level_liters: vehicle.current_fuel_level_liters || ""
+                current_fuel_level_liters: vehicle.current_fuel_level_liters || "",
+                engine_cc: vehicle.engine_cc || "",
+                purchase_year: vehicle.purchase_year || ""
             });
             setIsModalOpen(true);
         } else if (mode === "create") {
@@ -144,6 +148,8 @@ const VehiclePage = () => {
                 fuel_efficiency_kmpl: form.fuel_efficiency_kmpl ? Number(form.fuel_efficiency_kmpl) : null,
                 fuel_tank_capacity_liters: form.fuel_tank_capacity_liters ? Number(form.fuel_tank_capacity_liters) : null,
                 current_fuel_level_liters: form.current_fuel_level_liters ? Number(form.current_fuel_level_liters) : null,
+                engine_cc: form.engine_cc ? Number(form.engine_cc) : null,
+                purchase_year: form.purchase_year ? Number(form.purchase_year) : null,
             };
 
             if (modalMode === "create") {
@@ -397,6 +403,8 @@ const VehiclePage = () => {
                         <Input label="Fuel Tank Capacity (L)" name="fuel_tank_capacity_liters" type="number" placeholder="e.g. 80" value={form.fuel_tank_capacity_liters} onChange={handleChange} />
                         <Input label="Current Fuel Level (L)" name="current_fuel_level_liters" type="number" placeholder="e.g. 45" value={form.current_fuel_level_liters} onChange={handleChange} />
                         <Input label="Acquisition Cost" name="acquisition_cost" type="number" placeholder="e.g. 620000" value={form.acquisition_cost} onChange={handleChange} />
+                        <Input label="Engine CC" name="engine_cc" type="number" placeholder="e.g. 1500" value={form.engine_cc} onChange={handleChange} min="1" />
+                        <Input label="Purchase Year" name="purchase_year" type="number" placeholder="e.g. 2022" value={form.purchase_year} onChange={handleChange} min="1900" max={new Date().getFullYear() + 1} />
                         {modalMode === "edit" && (
                             <Select label="Status" name="status" value={form.status} onChange={handleChange} options={[{ label: "Available", value: "Available" }, { label: "On Trip", value: "On Trip" }, { label: "In Shop", value: "In Shop" }, { label: "Retired", value: "Retired" }]} className="md:col-span-2" />
                         )}
@@ -463,6 +471,14 @@ const VehiclePage = () => {
                                     <div className="bg-card p-4 rounded-xl border border-border">
                                         <p className="text-xs text-muted mb-1">Current Fuel Level</p>
                                         <p className="text-sm font-semibold text-primary">{selectedVehicleDetails.current_fuel_level_liters ? `${selectedVehicleDetails.current_fuel_level_liters} L` : "0 L"}</p>
+                                    </div>
+                                    <div className="bg-card p-4 rounded-xl border border-border">
+                                        <p className="text-xs text-muted mb-1">Engine Size</p>
+                                        <p className="text-sm font-semibold text-primary">{selectedVehicleDetails.engine_cc ? `${selectedVehicleDetails.engine_cc} cc` : "—"}</p>
+                                    </div>
+                                    <div className="bg-card p-4 rounded-xl border border-border">
+                                        <p className="text-xs text-muted mb-1">Purchase Year</p>
+                                        <p className="text-sm font-semibold text-primary">{selectedVehicleDetails.purchase_year || "—"}</p>
                                     </div>
                                 </div>
                             </div>
