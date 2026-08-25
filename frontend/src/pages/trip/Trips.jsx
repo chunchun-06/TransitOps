@@ -17,6 +17,7 @@ import { getDrivers, getAvailableDrivers } from "../../api/driver.api";
 import { getCurrentFuelPrice } from "../../api/fuel_price.api";
 import { getTollEstimate } from "../../api/toll_rate.api";
 import { Input, Select, Button, Badge, Modal } from "../../components/common";
+import AddressAutocomplete from "../../components/common/AddressAutocomplete";
 import TripMap from "../../components/trip/TripMap";
 import { useFleet } from "../../context/FleetContext";
 
@@ -182,13 +183,13 @@ const Trips = () => {
     // Fetch toll estimate when source, destination, vehicle, or distance changes
     useEffect(() => {
         const fetchTolls = async () => {
-            if (!form.source || !form.destination || !form.vehicle_id) {
+            if (!form.source || !form.destination) {
                 setTollsDetected([]);
                 setTollEstimateMsg("");
                 return;
             }
-            const veh = availableVehicles.find(v => v.id.toString() === form.vehicle_id.toString());
-            const vClass = veh?.vehicle_type || 'Truck'; // fallback
+            const veh = availableVehicles.find(v => v?.id != null && String(v.id) === String(form.vehicle_id));
+            const vClass = veh?.vehicle_type || 'Truck';
             try {
                 const res = await getTollEstimate({
                     source: form.source,
@@ -215,26 +216,50 @@ const Trips = () => {
     }, [form.source, form.destination, form.vehicle_id, form.planned_distance, availableVehicles]);
 
     const handleChange = (e) => {
-        setForm({ ...form, [e.target.name]: e.target.value });
+        const { name, value } = e.target;
+        if (name === "vehicle_id") {
+            const selectedVeh = availableVehicles.find(v => v?.id != null && String(v.id) === String(value));
+            let autoDriverId = form.driver_id;
+            if (selectedVeh && selectedVeh.current_driver_id) {
+                const isDrvAvail = availableDrivers.some(d => d.id === selectedVeh.current_driver_id);
+                if (isDrvAvail) {
+                    autoDriverId = selectedVeh.current_driver_id;
+                }
+            }
+            setForm(prev => ({
+                ...prev,
+                vehicle_id: value,
+                driver_id: autoDriverId,
+                current_fuel_liters: selectedVeh?.current_fuel_level_liters !== undefined ? selectedVeh.current_fuel_level_liters.toString() : prev.current_fuel_liters
+            }));
+        } else {
+            setForm({ ...form, [name]: value });
+        }
     };
 
     const handleSelectLocation = (mode, locationData) => {
+        // Normalise: AddressAutocomplete gives {latitude, longitude}, MapClickHandler gives {lat, lng}
+        const lat = locationData.lat ?? locationData.latitude;
+        const lng = locationData.lng ?? locationData.longitude;
+        const address = locationData.address;
+        const normalised = { lat, lng, address };
+
         if (mode === 'source') {
             setForm(prev => ({ 
                 ...prev, 
-                source: locationData.address,
-                source_latitude: locationData.lat,
-                source_longitude: locationData.lng
+                source: address,
+                source_latitude: lat,
+                source_longitude: lng
             }));
-            setDraftSource(locationData);
+            setDraftSource(normalised);
         } else if (mode === 'destination') {
             setForm(prev => ({ 
                 ...prev, 
-                destination: locationData.address,
-                destination_latitude: locationData.lat,
-                destination_longitude: locationData.lng
+                destination: address,
+                destination_latitude: lat,
+                destination_longitude: lng
             }));
-            setDraftDestination(locationData);
+            setDraftDestination(normalised);
         }
         setSelectingMode(null);
     };
@@ -253,17 +278,34 @@ const Trips = () => {
         }
     };
 
-    const selectedVehicleForForm = availableVehicles.find(v => v.id.toString() === form.vehicle_id);
-    const capacity = selectedVehicleForForm?.max_load_capacity || 0;
+    const selectedVehicleForForm = availableVehicles.find(v => v?.id != null && String(v.id) === String(form.vehicle_id));
+    const capacity = parseFloat(selectedVehicleForForm?.max_load_capacity) || 0;
+    const tankCapacity = parseFloat(selectedVehicleForForm?.fuel_tank_capacity_liters) || 0;
     const weight = Number(form.cargo_weight) || 0;
+    const currentFuelInput = form.current_fuel_liters !== '' ? parseFloat(form.current_fuel_liters) : NaN;
     const isOverweight = capacity > 0 && weight > capacity;
-    const overAmount = weight - capacity;
+    const overAmount = Math.max(weight - capacity, 0);
+    const isFuelNegative = !isNaN(currentFuelInput) && currentFuelInput < 0;
+    const isFuelOverTank = tankCapacity > 0 && !isNaN(currentFuelInput) && currentFuelInput > tankCapacity;
+    const hasFuelError = isFuelNegative || isFuelOverTank;
 
-    const isFormValid = form.source && form.destination && form.vehicle_id && form.driver_id && form.cargo_weight && !isOverweight && parseFloat(form.planned_distance) > 0;
+    const isFormValid = 
+        form.source && 
+        form.destination && 
+        form.vehicle_id && 
+        form.driver_id && 
+        form.cargo_weight && 
+        !isOverweight && 
+        !hasFuelError &&
+        parseFloat(form.planned_distance) > 0 &&
+        !isNaN(parseFloat(form.source_latitude)) &&
+        !isNaN(parseFloat(form.source_longitude)) &&
+        !isNaN(parseFloat(form.destination_latitude)) &&
+        !isNaN(parseFloat(form.destination_longitude));
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (isOverweight || !isFormValid) return;
+        if (isOverweight || !isFormValid || hasFuelError) return;
         
         try {
             setLoading(true);
@@ -318,7 +360,6 @@ const Trips = () => {
         setTollEstimateMsg("");
     };
 
-    // Open Complete Modal
     const handleOpenCompleteModal = (trip) => {
         const v = vehicles.find(veh => veh.id === trip.vehicle_id);
         setTripToComplete(trip);
@@ -333,7 +374,6 @@ const Trips = () => {
         setIsCompleteModalOpen(true);
     };
 
-    // Submit Trip Completion
     const handleCompleteTrip = async (e) => {
         e.preventDefault();
         if (!tripToComplete) return;
@@ -456,7 +496,7 @@ const Trips = () => {
                                 </div>
                             )}
 
-                            {/* Source Field with Select on Map */}
+                            {/* Source Field with Autocomplete & Map Button */}
                             <div className="flex flex-col gap-1.5">
                                 <div className="flex items-center justify-between">
                                     <label className="text-xs font-semibold text-secondary">Source Location</label>
@@ -469,18 +509,23 @@ const Trips = () => {
                                         {selectingMode === 'source' ? 'Click Map Now...' : 'Select on Map'}
                                     </button>
                                 </div>
-                                <Input 
-                                    name="source" 
-                                    placeholder="e.g. Mumbai Port or click map" 
-                                    value={form.source} 
-                                    onChange={(e) => {
-                                        handleChange(e);
+                                <AddressAutocomplete
+                                    value={form.source}
+                                    onChange={(val) => {
+                                        setForm(prev => ({ 
+                                            ...prev, 
+                                            source: val,
+                                            source_latitude: "",
+                                            source_longitude: ""
+                                        }));
                                         setDraftSource(null);
-                                    }} 
+                                    }}
+                                    onSelectLocation={(loc) => handleSelectLocation('source', loc)}
+                                    placeholder="Search source address or city..."
                                 />
                             </div>
                             
-                            {/* Destination Field with Select on Map */}
+                            {/* Destination Field with Autocomplete & Map Button */}
                             <div className="flex flex-col gap-1.5">
                                 <div className="flex items-center justify-between">
                                     <label className="text-xs font-semibold text-secondary">Destination Location</label>
@@ -493,14 +538,19 @@ const Trips = () => {
                                         {selectingMode === 'destination' ? 'Click Map Now...' : 'Select on Map'}
                                     </button>
                                 </div>
-                                <Input 
-                                    name="destination" 
-                                    placeholder="e.g. Pune Logistics Park or click map" 
-                                    value={form.destination} 
-                                    onChange={(e) => {
-                                        handleChange(e);
+                                <AddressAutocomplete
+                                    value={form.destination}
+                                    onChange={(val) => {
+                                        setForm(prev => ({ 
+                                            ...prev, 
+                                            destination: val,
+                                            destination_latitude: "",
+                                            destination_longitude: ""
+                                        }));
                                         setDraftDestination(null);
-                                    }} 
+                                    }}
+                                    onSelectLocation={(loc) => handleSelectLocation('destination', loc)}
+                                    placeholder="Search destination address or city..."
                                 />
                             </div>
                             
@@ -520,14 +570,16 @@ const Trips = () => {
                                 options={driverOptions}
                             />
                             
-                            <Input 
-                                label="Cargo Weight (kg)" 
-                                name="cargo_weight" 
-                                type="number" 
-                                placeholder="e.g. 700" 
-                                value={form.cargo_weight} 
-                                onChange={handleChange} 
-                            />
+                            <div>
+                                <Input 
+                                    label={`Cargo Weight (kg)${capacity > 0 ? ` — max ${capacity} kg` : ''}`}
+                                    name="cargo_weight" 
+                                    type="number" 
+                                    placeholder={capacity > 0 ? `Max ${capacity} kg` : "e.g. 700"}
+                                    value={form.cargo_weight} 
+                                    onChange={handleChange} 
+                                />
+                            </div>
                             
                             <Input 
                                 label="Planned Distance (km)" 
@@ -543,18 +595,47 @@ const Trips = () => {
                                     label="Toll Amount (₹)" 
                                     name="toll_amount" 
                                     type="number" 
-                                    placeholder="Auto-estimated or enter manually" 
+                                    placeholder="Auto-estimated from route toll plazas" 
                                     value={form.toll_amount} 
                                     onChange={handleChange} 
                                 />
                                 {tollEstimateMsg && (
-                                    <p className="text-[11.5px] text-accent font-medium -mt-2">
-                                        {tollEstimateMsg}
+                                    <p className="text-[11.5px] text-accent font-medium -mt-1 flex items-center gap-1">
+                                        <span>🛣️</span> {tollEstimateMsg}
                                     </p>
                                 )}
                             </div>
 
-                            {/* Fuel Panel - STEP 5 */}
+                            {/* Detected Toll Gates Breakdown Panel */}
+                            {tollsDetected.length > 0 && (
+                                <div className="bg-sidebar p-3.5 rounded-xl border border-amber-500/30 space-y-2.5">
+                                    <div className="flex items-center justify-between border-b border-border pb-2">
+                                        <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                                            <span>🛑</span> Route Toll Gates ({tollsDetected.length})
+                                        </span>
+                                        <span className="text-xs font-bold text-emerald-400">
+                                            Total: ₹{form.toll_amount || 0}
+                                        </span>
+                                    </div>
+                                    <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                                        {tollsDetected.map((t, idx) => (
+                                            t && (
+                                                <div key={t.id || idx} className="flex items-center justify-between text-xs bg-card/60 p-2 rounded-lg border border-border/60">
+                                                    <div className="truncate pr-2">
+                                                        <p className="font-semibold text-primary truncate">{t.toll_name || `Toll Plaza #${idx + 1}`}</p>
+                                                        <p className="text-[10px] text-muted">{t.highway || "Highway"} • {t.location || "Route Corridor"}</p>
+                                                    </div>
+                                                    <span className="font-bold text-emerald-400 shrink-0 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                                                        ₹{parseFloat(t.toll_amount || 0).toFixed(2)}
+                                                    </span>
+                                                </div>
+                                            )
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Fuel Panel */}
                             {selectedVehicleForForm && (
                                 <div className="bg-sidebar p-4 rounded-xl border border-border space-y-3.5">
                                     <div className="flex items-center gap-2 border-b border-border pb-2">
@@ -569,11 +650,15 @@ const Trips = () => {
                                         </div>
                                         <div>
                                             <p className="text-muted">Efficiency</p>
-                                            <p className="font-semibold text-secondary">{fuelPanelData.efficiency} km/L</p>
+                                            <p className={`font-semibold ${fuelPanelData.efficiency > 0 ? 'text-secondary' : 'text-amber-400'}`}>
+                                                {fuelPanelData.efficiency > 0 ? `${fuelPanelData.efficiency} km/L` : '⚠️ Not set'}
+                                            </p>
                                         </div>
                                         <div>
                                             <p className="text-muted">Tank Capacity</p>
-                                            <p className="font-semibold text-secondary">{fuelPanelData.tankCapacity} Litres</p>
+                                            <p className={`font-semibold ${fuelPanelData.tankCapacity > 0 ? 'text-secondary' : 'text-amber-400'}`}>
+                                                {fuelPanelData.tankCapacity > 0 ? `${fuelPanelData.tankCapacity} L` : '⚠️ Not set'}
+                                            </p>
                                         </div>
                                         <div>
                                             <p className="text-muted">Fuel Price</p>
@@ -581,366 +666,243 @@ const Trips = () => {
                                         </div>
                                     </div>
 
-                                    <Input 
-                                        label="Current Fuel Level (litres)" 
-                                        name="current_fuel_liters" 
-                                        type="number" 
-                                        placeholder={`Current: ${selectedVehicleForForm.current_fuel_level_liters || 0} L`}
-                                        value={form.current_fuel_liters} 
-                                        onChange={handleChange} 
-                                        className="py-1 px-2 text-xs"
-                                    />
+                                    {fuelPanelData.efficiency === 0 && (
+                                        <div className="text-[11px] text-amber-400 bg-amber-500/10 px-3 py-2 rounded-lg border border-amber-500/20">
+                                            ⚠️ Vehicle mileage not configured — fuel estimation unavailable. Edit the vehicle to add fuel efficiency (km/L).
+                                        </div>
+                                    )}
+
+                                    <div>
+                                        <Input 
+                                            label={`Current Fuel Level (litres)${tankCapacity > 0 ? ` — max ${tankCapacity} L` : ''}`}
+                                            name="current_fuel_liters" 
+                                            type="number" 
+                                            placeholder={`Current: ${selectedVehicleForForm.current_fuel_level_liters || 0} L`}
+                                            value={form.current_fuel_liters} 
+                                            onChange={handleChange} 
+                                            className="py-1 px-2 text-xs"
+                                        />
+                                        {isFuelNegative && (
+                                            <p className="text-[11px] text-red-400 mt-1">❌ Fuel level cannot be negative.</p>
+                                        )}
+                                        {isFuelOverTank && (
+                                            <p className="text-[11px] text-red-400 mt-1">❌ Current fuel ({currentFuelInput} L) cannot exceed tank capacity ({tankCapacity} L).</p>
+                                        )}
+                                    </div>
 
                                     <div className="pt-2 border-t border-border space-y-1.5 text-xs">
-                                        <div className="flex justify-between">
-                                            <span className="text-muted">Est. Fuel Required:</span>
-                                            <span className="font-semibold text-secondary">{fuelPanelData.estimatedRequired} L</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-muted">Additional Fuel to Buy:</span>
-                                            <span className="font-semibold text-secondary">{fuelPanelData.additionalRequired} L</span>
-                                        </div>
-                                        <div className="flex justify-between text-accent font-bold pt-1 border-t border-border/50">
-                                            <span>Est. Additional Cost:</span>
-                                            <span>₹{fuelPanelData.estimatedCost.toLocaleString()}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Validation Block */}
-                            {isOverweight && (
-                                <div className="bg-danger/10 border border-red-500/20 p-4 rounded-xl mt-2 animate-fade-in">
-                                    <p className="text-danger text-sm font-medium leading-relaxed">
-                                        Vehicle Capacity: <span className="text-primary">{capacity} kg</span><br />
-                                        Cargo Weight: <span className="text-primary">{weight} kg</span><br />
-                                    </p>
-                                    <div className="text-danger text-sm font-bold flex items-center gap-1.5 mt-2 pt-2 border-t border-red-500/20">
-                                        <CloseIcon className="w-4 h-4" /> Capacity exceeded by {overAmount} kg — dispatch blocked
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Dispatch Summary Card - STEP 6 */}
-                            {isFormValid && (
-                                <div className="bg-accent/5 border border-accent/20 p-4 rounded-xl space-y-3 animate-fade-in-up">
-                                    <div className="flex items-center gap-2 text-accent font-bold text-xs border-b border-accent/15 pb-2">
-                                        <ClipboardIcon className="w-4 h-4" />
-                                        <span>DISPATCH SUMMARY REVIEW</span>
-                                    </div>
-                                    <div className="text-xs space-y-1.5">
-                                        <div className="flex justify-between">
-                                            <span className="text-secondary font-medium">Route:</span>
-                                            <span className="text-primary truncate max-w-[180px] font-semibold">{form.source} → {form.destination}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-secondary font-medium">Distance:</span>
-                                            <span className="text-primary font-semibold">{form.planned_distance} km</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-secondary font-medium">Vehicle & Driver:</span>
-                                            <span className="text-primary font-semibold truncate max-w-[180px]">{selectedVehicleForForm.registration_no} / {selectedDriverName}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-secondary font-medium">Cargo Weight:</span>
-                                            <span className="text-primary font-semibold">{form.cargo_weight} kg</span>
-                                        </div>
-                                        {fuelPanelData.estimatedRequired > 0 && (
-                                            <div className="flex justify-between text-secondary font-medium pt-1 border-t border-accent/10">
-                                                <span>Est. Fuel Cost:</span>
-                                                <span className="text-primary font-semibold">₹{fuelPanelData.estimatedCost.toLocaleString()}</span>
-                                            </div>
+                                        {parseFloat(form.planned_distance) > 0 && fuelPanelData.efficiency > 0 ? (
+                                            <>
+                                                <div className="flex justify-between">
+                                                    <span className="text-muted">Route Distance:</span>
+                                                    <span className="font-semibold text-secondary">{parseFloat(form.planned_distance).toFixed(1)} km</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="text-muted">Est. Fuel Required:</span>
+                                                    <span className="font-semibold text-secondary">{fuelPanelData.estimatedRequired} L</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="text-muted">Additional Fuel to Buy:</span>
+                                                    <span className={`font-semibold ${fuelPanelData.additionalRequired > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                                        {fuelPanelData.additionalRequired} L
+                                                        {fuelPanelData.additionalRequired === 0 ? ' ✓ Sufficient' : ''}
+                                                    </span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="text-muted">Est. Additional Cost:</span>
+                                                    <span className="font-bold text-emerald-400">₹{fuelPanelData.estimatedCost}</span>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <p className="text-muted italic text-[11px]">
+                                                {parseFloat(form.planned_distance) <= 0
+                                                    ? '📍 Select source & destination to calculate fuel.'
+                                                    : '⚠️ Set vehicle mileage to enable fuel estimation.'}
+                                            </p>
                                         )}
-                                        <div className="flex justify-between text-secondary font-medium">
-                                            <span>Est. Toll Cost:</span>
-                                            <span className="text-primary font-semibold">₹{Number(form.toll_amount || 0).toLocaleString()}</span>
-                                        </div>
-                                        <div className="flex justify-between text-accent font-bold pt-1 border-t border-accent/20">
-                                            <span>Est. Total Cost:</span>
-                                            <span>₹{(Number(fuelPanelData.estimatedCost || 0) + Number(form.toll_amount || 0)).toLocaleString()}</span>
-                                        </div>
                                     </div>
                                 </div>
                             )}
 
-                            <div className="flex gap-3 mt-2">
-                                <Button 
-                                    type="submit" 
-                                    className="flex-1"
-                                    disabled={!isFormValid || loading}
-                                >
-                                    {loading ? "Dispatching..." : !isFormValid ? "Dispatch (disabled)" : "Dispatch Trip"}
-                                </Button>
-                                <Button 
-                                    type="button" 
-                                    variant="secondary" 
-                                    onClick={handleCancel}
-                                >
-                                    Cancel
+                            {/* Overweight Alert */}
+                            {isOverweight && (
+                                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs font-semibold">
+                                    ❌ Goods weight ({weight} kg) exceeds vehicle load capacity ({capacity} kg) by {overAmount} kg. Reduce goods weight to dispatch.
+                                </div>
+                            )}
+
+                            <div className="flex items-center justify-end gap-3 pt-2">
+                                <Button type="button" variant="secondary" onClick={handleCancel}>Cancel</Button>
+                                <Button type="submit" disabled={loading || !isFormValid}>
+                                    {loading ? "Dispatching..." : "Dispatch Trip"}
                                 </Button>
                             </div>
                         </form>
                     </div>
-
                 </div>
 
-                {/* Right Side: Map Viewer + Live Board */}
-                <div className="lg:col-span-8 flex flex-col gap-6">
+                {/* Right Side: Map & Trip Live Board */}
+                <div className="lg:col-span-8 space-y-6">
                     
-                    {/* Interactive Route Map */}
-                    <TripMap 
-                        trip={activeTrip} 
-                        vehicle={activeVehicle} 
-                        driver={activeDriver} 
-                        selectingMode={selectingMode}
-                        onSelectLocation={handleSelectLocation}
-                        draftSource={draftSource}
-                        draftDestination={draftDestination}
-                        onRouteCalculated={handleRouteCalculated}
-                    />
-
-                    {/* Live Board Title & Filters */}
-                    <div className="flex flex-col gap-3 bg-card p-4 rounded-2xl border border-border shadow-sm">
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-xs uppercase tracking-widest text-muted font-bold">Live Status Board</h2>
-                            {activeTrip && (
-                                <span className="text-xs text-secondary">
-                                    Map Target: <strong className="text-accent">TR-{String(activeTrip.id).substring(0,5).toUpperCase()}</strong>
+                    {/* OpenStreetMap Component */}
+                    <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm flex flex-col h-[520px]">
+                        <div className="p-4 border-b border-border bg-sidebar flex items-center justify-between">
+                            <h3 className="text-xs font-bold uppercase tracking-wider text-muted flex items-center gap-2">
+                                <MapIcon className="w-4 h-4 text-accent" /> Live Route & Geographic Mapping
+                            </h3>
+                            {selectingMode && (
+                                <span className="text-xs font-bold text-accent animate-pulse bg-accent/10 px-3 py-1 rounded-full border border-accent/30">
+                                    Click on the map to set {selectingMode.toUpperCase()}
                                 </span>
                             )}
                         </div>
-
-                        {/* Status Tabs */}
-                        <div className="flex flex-wrap gap-2">
-                            {["All", "Draft", "Dispatched", "Completed", "Cancelled"].map(s => {
-                                const count = trips.filter(t => s === "All" || t.status === s).length;
-                                const isActive = statusFilter === s;
-                                return (
-                                    <button
-                                        key={s}
-                                        onClick={() => setStatusFilter(s)}
-                                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all border ${isActive ? "bg-accent text-card border-accent" : "bg-sidebar text-secondary border-border/40 hover:bg-[#2B3038]"}`}
-                                    >
-                                        {s} ({count})
-                                    </button>
-                                );
-                            })}
+                        
+                        <div className="flex-1 relative">
+                            <TripMap
+                                draftSource={draftSource}
+                                draftDestination={draftDestination}
+                                sourceText={form.source}
+                                destinationText={form.destination}
+                                selectingMode={selectingMode}
+                                onSelectLocation={handleSelectLocation}
+                                onRouteCalculated={handleRouteCalculated}
+                                vehicle={selectedVehicleForForm || null}
+                                driver={availableDrivers.find(d => d.id === form.driver_id) || null}
+                                tolls={tollsDetected}
+                            />
                         </div>
                     </div>
-                    
-                    {trips.filter(t => statusFilter === "All" || t.status === statusFilter).length === 0 ? (
-                        <div className="bg-card border border-border rounded-2xl p-12 flex flex-col items-center justify-center text-center shadow-sm">
-                            <p className="text-secondary text-sm">No trips match the selected status.</p>
-                            <p className="text-gray-600 text-xs mt-1">Adjust your filters or dispatch new trips from the planning console.</p>
+
+                    {/* Trips Live Table Board */}
+                    <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm flex flex-col">
+                        <div className="p-4 border-b border-border bg-sidebar flex items-center justify-between">
+                            <h3 className="text-xs font-bold uppercase tracking-wider text-muted flex items-center gap-2">
+                                <ClipboardIcon className="w-4 h-4 text-accent" /> Active Fleet Dispatch Board
+                            </h3>
+                            <Select
+                                value={statusFilter}
+                                onChange={(e) => setStatusFilter(e.target.value)}
+                                options={[
+                                    { label: "Filter: All Trips", value: "All" },
+                                    { label: "Draft", value: "Draft" },
+                                    { label: "Dispatched", value: "Dispatched" },
+                                    { label: "Completed", value: "Completed" },
+                                    { label: "Cancelled", value: "Cancelled" }
+                                ]}
+                                className="w-[160px] py-1 text-xs"
+                            />
                         </div>
-                    ) : (
-                        <div className="grid grid-cols-1 gap-4">
-                            {trips
-                                .filter(t => statusFilter === "All" || t.status === statusFilter)
-                                .map(trip => {
-                                    const v = vehicles.find(veh => veh.id === trip.vehicle_id);
-                                    const d = drivers.find(drv => drv.id === trip.driver_id);
-                                    const vName = v ? v.registration_no : "—";
-                                    const dName = d ? d.name.toUpperCase() : "UNASSIGNED";
-                                    const isSelected = activeTrip && activeTrip.id === trip.id;
 
-                                    // GPS Telemetry & Progress
-                                    let gpsData = null;
-                                    if (trip.status === "Dispatched" && trip.source_latitude && trip.source_longitude && trip.destination_latitude && trip.destination_longitude) {
-                                        const mins = new Date().getMinutes();
-                                        const progress = (mins % 10) / 10 || 0.1; // fallback to 10%
-                                        const lat = parseFloat(trip.source_latitude) + (parseFloat(trip.destination_latitude) - parseFloat(trip.source_latitude)) * progress;
-                                        const lng = parseFloat(trip.source_longitude) + (parseFloat(trip.destination_longitude) - parseFloat(trip.source_longitude)) * progress;
-                                        gpsData = { lat: lat.toFixed(5), lng: lng.toFixed(5), percent: Math.round(progress * 100) };
-                                    }
-                                    
-                                    return (
-                                        <div 
-                                            key={trip.id} 
-                                            onClick={() => setSelectedTripId(trip.id)}
-                                            className={`bg-card border rounded-2xl p-5 shadow-sm transition-all cursor-pointer flex flex-col gap-3.5 relative overflow-hidden group ${isSelected ? 'border-accent ring-1 ring-accent/50' : 'border-border hover:border-[#4b5563]'}`}
-                                        >
-                                            
-                                            {/* Colored Left Accent line */}
-                                            <div className={`absolute left-0 top-0 bottom-0 w-1 ${trip.status === "Dispatched" ? "bg-info" : trip.status === "Draft" ? "bg-[#4B5563]" : trip.status === "Cancelled" ? "bg-[#F87171]" : "bg-success"}`}></div>
- 
-                                            <div className="flex justify-between items-start ml-2">
-                                                <div className="flex flex-col">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-secondary font-bold text-sm tracking-wide">TR-{String(trip.id).substring(0,5).toUpperCase()}</span>
-                                                        {isSelected && (
-                                                            <span className="text-[10px] bg-accent/20 text-accent font-bold px-2 py-0.5 rounded">Active Map View</span>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex items-center gap-2 text-secondary text-sm mt-1.5 font-medium">
-                                                        <span>{trip.source}</span>
-                                                        <ArrowRight className="w-3.5 h-3.5 text-accent" />
-                                                        <span>{trip.destination}</span>
-                                                    </div>
-                                                </div>
-                                                <div className="flex flex-col items-end">
-                                                    <span className="text-secondary text-xs font-semibold tracking-wider">
-                                                        {vName}
-                                                    </span>
-                                                </div>
-                                            </div>
-
-                                            {/* Driver details */}
-                                            {d && (
-                                                <div className="ml-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-secondary bg-sidebar/30 px-3 py-2 rounded-lg border border-border/20">
-                                                    <div className="flex items-center gap-1">
-                                                        <UserIcon className="w-3.5 h-3.5 text-accent" />
-                                                        <span className="font-semibold text-primary">{d.name}</span>
-                                                    </div>
-                                                    <span className="text-muted text-[11px]">Lic: {d.license_number || "—"}</span>
-                                                    <span className="text-muted text-[11px]">Exp: {new Date(d.license_expiry_date).toLocaleDateString()}</span>
-                                                </div>
-                                            )}
-
-                                            {/* Live telemetry progress & coordinates */}
-                                            {gpsData && (
-                                                <div className="ml-2 flex flex-col gap-1.5 bg-sidebar/50 p-3 rounded-lg border border-border/40">
-                                                    <div className="flex justify-between items-center text-[10px] font-bold text-muted uppercase tracking-wider">
-                                                        <span>GPS Position: <span className="text-[#C98A1C] font-mono">{gpsData.lat}, {gpsData.lng}</span></span>
-                                                        <span className="text-info">{gpsData.percent}% Complete</span>
-                                                    </div>
-                                                    <div className="w-full bg-[#1A1F26] rounded-full h-1.5 overflow-hidden border border-border/30 relative">
-                                                        <div 
-                                                            className="bg-info h-1.5 rounded-full transition-all duration-1000" 
-                                                            style={{ width: `${gpsData.percent}%`, backgroundColor: "#3B82F6" }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            <div className="flex justify-between items-end ml-2 mt-1">
-                                                <Badge status={trip.status}>{trip.status}</Badge>
-                                                
-                                                <div className="flex items-center gap-2">
-                                                    <Button 
-                                                        variant={isSelected ? "default" : "outline"}
-                                                        className="px-2.5 py-1 text-xs flex items-center gap-1"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setSelectedTripId(trip.id);
-                                                        }}
-                                                    >
-                                                        <MapIcon className="w-3.5 h-3.5" /> Map Route
-                                                    </Button>
- 
-                                                    {trip.status === "Dispatched" && (
-                                                        <>
-                                                            <Button 
-                                                                variant="outline" 
-                                                                className="px-2 py-1 text-xs text-red-400 border-red-500/20 hover:bg-red-500/10" 
-                                                                onClick={async (e) => {
-                                                                    e.stopPropagation();
-                                                                    if (!window.confirm("Are you sure you want to cancel this trip?")) return;
-                                                                    try {
-                                                                        const res = await updateTrip(trip.id, { ...trip, status: "Cancelled" });
-                                                                        if (fleetCtx?.updateTripInState && res?.data) {
-                                                                            fleetCtx.updateTripInState(res.data);
-                                                                        }
-                                                                        await fetchData();
-                                                                        if (fleetCtx?.fetchFleetData) {
-                                                                            fleetCtx.fetchFleetData();
-                                                                        }
-                                                                    } catch (e) { alert("Failed to cancel trip"); }
-                                                                }}
-                                                            >
-                                                                Cancel
-                                                            </Button>
-                                                            <Button 
-                                                                className="px-2 py-1 text-xs" 
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleOpenCompleteModal(trip);
-                                                                }}
-                                                            >
-                                                                Complete
-                                                            </Button>
-                                                        </>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse whitespace-nowrap">
+                                <thead>
+                                    <tr className="border-b border-border bg-sidebar/50 text-[11px] font-bold text-muted uppercase">
+                                        <th className="py-3 px-4">Trip ID</th>
+                                        <th className="py-3 px-4">Vehicle</th>
+                                        <th className="py-3 px-4">Driver</th>
+                                        <th className="py-3 px-4">Route</th>
+                                        <th className="py-3 px-4">Distance</th>
+                                        <th className="py-3 px-4">Est. Fuel</th>
+                                        <th className="py-3 px-4">Status</th>
+                                        <th className="py-3 px-4 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border text-sm">
+                                    {trips
+                                        .filter(t => statusFilter === "All" || t.status === statusFilter)
+                                        .map(t => (
+                                            <tr 
+                                                key={t.id} 
+                                                onClick={() => setSelectedTripId(t.id)}
+                                                className={`hover:bg-primary/[0.02] cursor-pointer transition-colors ${selectedTripId === t.id ? 'bg-accent/5 font-medium' : ''}`}
+                                            >
+                                                <td className="py-3 px-4 font-mono text-accent text-xs font-bold">TR-{String(t.id).substring(0, 6).toUpperCase()}</td>
+                                                <td className="py-3 px-4 text-secondary font-medium">{t.registration_no || "—"}</td>
+                                                <td className="py-3 px-4 text-secondary">{t.driver_name || "—"}</td>
+                                                <td className="py-3 px-4 text-secondary text-xs">{t.source} → {t.destination}</td>
+                                                <td className="py-3 px-4 text-secondary">{t.planned_distance} km</td>
+                                                <td className="py-3 px-4 text-amber-400 font-medium">{t.estimated_fuel_liters || "—"} L</td>
+                                                <td className="py-3 px-4"><Badge status={t.status}>{t.status}</Badge></td>
+                                                <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
+                                                    {t.status === "Dispatched" && (
+                                                        <Button 
+                                                            variant="secondary" 
+                                                            className="text-xs py-1 px-2.5 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
+                                                            onClick={() => handleOpenCompleteModal(t)}
+                                                        >
+                                                            Complete Trip
+                                                        </Button>
                                                     )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    {trips.length === 0 && (
+                                        <tr><td colSpan={8} className="py-8 text-center text-muted text-xs">No trips found in dispatch board.</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
-                    )}
-
-                    <div className="mt-2 p-3 bg-sidebar/40 rounded-xl border border-border">
-                        <p className="text-xs text-muted">
-                            Click any trip or the "Map Route" button to instantly project the route on OpenStreetMap with real OSRM path calculation.
-                        </p>
                     </div>
 
                 </div>
 
             </div>
 
-            {/* Complete Trip Dialog Modal */}
+            {/* Complete Trip Modal */}
             <Modal
                 isOpen={isCompleteModalOpen}
                 onClose={() => setIsCompleteModalOpen(false)}
-                title="Complete Trip Verification"
+                title="Complete Trip & Record Actual Metrics"
                 footer={
-                    <div className="flex justify-end gap-3">
+                    <div className="flex justify-end gap-3 w-full">
                         <Button variant="secondary" onClick={() => setIsCompleteModalOpen(false)}>Cancel</Button>
                         <Button onClick={handleCompleteTrip} disabled={completeLoading}>
-                            {completeLoading ? "Completing..." : "Complete Trip"}
+                            {completeLoading ? "Completing..." : "Submit & Mark Completed"}
                         </Button>
                     </div>
                 }
             >
                 <form onSubmit={handleCompleteTrip} className="space-y-4">
                     {completeError && (
-                        <div className="bg-danger/10 border border-red-500/20 text-danger text-sm p-3 rounded-lg flex items-center gap-2">
-                            <HiOutlineExclamationCircle className="w-5 h-5 shrink-0" />
-                            <span>{completeError}</span>
+                        <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-semibold rounded-xl">
+                            {completeError}
                         </div>
                     )}
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <Input 
-                            label="Actual Distance Travelled (km)"
-                            name="actual_distance"
-                            type="number"
-                            required
-                            value={completeForm.actual_distance}
-                            onChange={(e) => setCompleteForm({...completeForm, actual_distance: e.target.value})}
+                            label="Actual Distance (km)" 
+                            type="number" 
+                            value={completeForm.actual_distance} 
+                            onChange={(e) => setCompleteForm({ ...completeForm, actual_distance: e.target.value })} 
+                            required 
                         />
                         <Input 
-                            label="Final Odometer Reading (km)"
-                            name="final_odometer"
-                            type="number"
-                            required
-                            value={completeForm.final_odometer}
-                            onChange={(e) => setCompleteForm({...completeForm, final_odometer: e.target.value})}
+                            label="Final Odometer Reading (km)" 
+                            type="number" 
+                            value={completeForm.final_odometer} 
+                            onChange={(e) => setCompleteForm({ ...completeForm, final_odometer: e.target.value })} 
+                            required 
                         />
                         <Input 
-                            label="Actual Fuel Consumed (litres)"
-                            name="actual_fuel_consumed"
-                            type="number"
-                            required
-                            value={completeForm.actual_fuel_consumed}
-                            onChange={(e) => setCompleteForm({...completeForm, actual_fuel_consumed: e.target.value})}
+                            label="Actual Fuel Consumed (litres)" 
+                            type="number" 
+                            value={completeForm.actual_fuel_consumed} 
+                            onChange={(e) => setCompleteForm({ ...completeForm, actual_fuel_consumed: e.target.value })} 
+                            required 
                         />
                         <Input 
-                            label="Trip Revenue (₹)"
-                            name="revenue"
-                            type="number"
+                            label="Trip Revenue (₹)" 
+                            type="number" 
+                            value={completeForm.revenue} 
+                            onChange={(e) => setCompleteForm({ ...completeForm, revenue: e.target.value })} 
                             placeholder="e.g. 15000"
-                            value={completeForm.revenue}
-                            onChange={(e) => setCompleteForm({...completeForm, revenue: e.target.value})}
                         />
                         <Input 
-                            label="Actual Toll Paid (₹)"
-                            name="toll_amount"
-                            type="number"
-                            placeholder={tripToComplete?.toll_amount ? `Est: ₹${tripToComplete.toll_amount}` : "e.g. 250"}
-                            value={completeForm.toll_amount}
-                            onChange={(e) => setCompleteForm({...completeForm, toll_amount: e.target.value})}
+                            label="Total Toll Amount (₹)" 
+                            type="number" 
+                            value={completeForm.toll_amount} 
+                            onChange={(e) => setCompleteForm({ ...completeForm, toll_amount: e.target.value })} 
+                            placeholder="e.g. 450"
                         />
                     </div>
                 </form>

@@ -7,7 +7,8 @@ import {
     HiOutlineBeaker,
     HiOutlineCalendar,
     HiOutlineTrendingUp,
-    HiOutlineFilter
+    HiOutlineFilter,
+    HiOutlineDownload
 } from "react-icons/hi";
 import { 
     ResponsiveContainer, 
@@ -25,6 +26,9 @@ import {
     Line 
 } from "recharts";
 import { getFinancialAnalytics } from "../../api/analytics.api";
+import { getVehicles } from "../../api/vehicle.api";
+import { getDrivers } from "../../api/driver.api";
+import { downloadReportCSV, downloadReportPDF } from "../../api/report.api";
 import { Button, Input, Select, Badge } from "../../components/common";
 
 const COLORS = ["#10B981", "#3B82F6", "#F59E0B", "#8B5CF6", "#EF4444", "#EC4899"];
@@ -35,10 +39,30 @@ const FinancialsPage = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    // Dropdown lists
+    const [vehiclesList, setVehiclesList] = useState([]);
+    const [driversList, setDriversList] = useState([]);
+
     // Filter states
     const [period, setPeriod] = useState("This Month");
     const [startDate, setStartDate] = useState("");
     const [endDate, setEndDate] = useState("");
+    const [selectedVehicle, setSelectedVehicle] = useState("");
+    const [selectedDriver, setSelectedDriver] = useState("");
+
+    // Initial dropdown fetch
+    useEffect(() => {
+        const fetchDropdowns = async () => {
+            try {
+                const [vRes, dRes] = await Promise.all([getVehicles(), getDrivers()]);
+                setVehiclesList(vRes.data || []);
+                setDriversList(dRes.data || []);
+            } catch (err) {
+                console.error("Failed to load vehicle/driver dropdowns:", err);
+            }
+        };
+        fetchDropdowns();
+    }, []);
 
     // Fetch primary financial analytics
     const fetchAnalytics = async () => {
@@ -48,7 +72,9 @@ const FinancialsPage = () => {
             const params = {
                 period,
                 ...(period === "Custom" && startDate ? { dateFrom: startDate } : {}),
-                ...(period === "Custom" && endDate ? { dateTo: endDate } : {})
+                ...(period === "Custom" && endDate ? { dateTo: endDate } : {}),
+                ...(selectedVehicle ? { vehicleId: selectedVehicle } : {}),
+                ...(selectedDriver ? { driverId: selectedDriver } : {})
             };
             const res = await getFinancialAnalytics(params);
             setAnalytics(res.data);
@@ -62,7 +88,51 @@ const FinancialsPage = () => {
 
     useEffect(() => {
         fetchAnalytics();
-    }, [period, startDate, endDate]);
+    }, [period, startDate, endDate, selectedVehicle, selectedDriver]);
+
+    const handleExportCSV = async () => {
+        try {
+            const params = {
+                period,
+                ...(period === "Custom" && startDate ? { startDate } : {}),
+                ...(period === "Custom" && endDate ? { endDate } : {}),
+                ...(selectedVehicle ? { vehicleId: selectedVehicle } : {}),
+                ...(selectedDriver ? { driverId: selectedDriver } : {})
+            };
+            const res = await downloadReportCSV(params);
+            const url = window.URL.createObjectURL(new Blob([res.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `transitops_financials_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        } catch (err) {
+            console.error("CSV Export failed:", err);
+        }
+    };
+
+    const handleExportPDF = async () => {
+        try {
+            const params = {
+                period,
+                ...(period === "Custom" && startDate ? { startDate } : {}),
+                ...(period === "Custom" && endDate ? { endDate } : {}),
+                ...(selectedVehicle ? { vehicleId: selectedVehicle } : {}),
+                ...(selectedDriver ? { driverId: selectedDriver } : {})
+            };
+            const res = await downloadReportPDF(params);
+            const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `transitops_financials_${new Date().toISOString().slice(0,10)}.pdf`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        } catch (err) {
+            console.error("PDF Export failed:", err);
+        }
+    };
 
     const formatCurrency = (val) => {
         return new Intl.NumberFormat("en-IN", {
@@ -105,43 +175,77 @@ const FinancialsPage = () => {
                     </div>
                 </div>
 
-                {/* Filters */}
-                <div className="flex flex-wrap items-center gap-3 bg-[#1A1F26] p-2 rounded-lg border border-[#2B3038]">
-                    <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted px-2 border-r border-[#2B3038] mr-1">
-                        <HiOutlineFilter className="w-3.5 h-3.5 text-[#C98A1C]" />
-                        <span>Filter Ledger</span>
-                    </div>
-
-                    <select
-                        className="form-input border text-xs rounded-lg px-2 py-1 outline-none bg-card text-primary border-border cursor-pointer"
-                        value={period}
-                        onChange={(e) => setPeriod(e.target.value)}
-                    >
-                        <option value="This Week">This Week</option>
-                        <option value="This Month">This Month</option>
-                        <option value="This Quarter">This Quarter</option>
-                        <option value="Year to Date">Year to Date</option>
-                        <option value="All Time">All Time</option>
-                        <option value="Custom">Custom Range</option>
-                    </select>
-
-                    {period === "Custom" && (
-                        <div className="flex items-center gap-2">
-                            <input
-                                type="date"
-                                className="form-input border text-[11px] rounded-lg px-2 py-1 outline-none bg-card text-primary border-border"
-                                value={startDate}
-                                onChange={(e) => setStartDate(e.target.value)}
-                            />
-                            <span className="text-[10px] text-muted font-bold">TO</span>
-                            <input
-                                type="date"
-                                className="form-input border text-[11px] rounded-lg px-2 py-1 outline-none bg-card text-primary border-border"
-                                value={endDate}
-                                onChange={(e) => setEndDate(e.target.value)}
-                            />
+                {/* Export & Filters */}
+                <div className="flex flex-wrap items-center gap-3">
+                    <Button variant="outline" onClick={handleExportCSV}>
+                        <HiOutlineDownload className="w-4 h-4 mr-1" /> CSV Export
+                    </Button>
+                    <Button onClick={handleExportPDF}>
+                        <HiOutlineDownload className="w-4 h-4 mr-1" /> PDF Statement
+                    </Button>
+                    
+                    <div className="flex flex-wrap items-center gap-2 bg-[#1A1F26] p-2 rounded-lg border border-[#2B3038]">
+                        <div className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-muted px-2 border-r border-[#2B3038]">
+                            <HiOutlineFilter className="w-3.5 h-3.5 text-[#C98A1C]" />
+                            <span>Filter</span>
                         </div>
-                    )}
+
+                        {/* Period Selector */}
+                        <select
+                            className="form-input border text-xs rounded-lg px-2 py-1 outline-none bg-card text-primary border-border cursor-pointer"
+                            value={period}
+                            onChange={(e) => setPeriod(e.target.value)}
+                        >
+                            <option value="This Week">This Week</option>
+                            <option value="This Month">This Month</option>
+                            <option value="This Quarter">This Quarter</option>
+                            <option value="Year to Date">Year to Date</option>
+                            <option value="All Time">All Time</option>
+                            <option value="Custom">Custom Range</option>
+                        </select>
+
+                        {/* Vehicle Filter */}
+                        <select
+                            className="form-input border text-xs rounded-lg px-2 py-1 outline-none bg-card text-primary border-border cursor-pointer max-w-[140px]"
+                            value={selectedVehicle}
+                            onChange={(e) => setSelectedVehicle(e.target.value)}
+                        >
+                            <option value="">All Vehicles</option>
+                            {vehiclesList.map(v => (
+                                <option key={v.id} value={v.id}>{v.registration_no}</option>
+                            ))}
+                        </select>
+
+                        {/* Driver Filter */}
+                        <select
+                            className="form-input border text-xs rounded-lg px-2 py-1 outline-none bg-card text-primary border-border cursor-pointer max-w-[130px]"
+                            value={selectedDriver}
+                            onChange={(e) => setSelectedDriver(e.target.value)}
+                        >
+                            <option value="">All Drivers</option>
+                            {driversList.map(d => (
+                                <option key={d.id} value={d.id}>{d.name}</option>
+                            ))}
+                        </select>
+
+                        {period === "Custom" && (
+                            <div className="flex items-center gap-1">
+                                <input
+                                    type="date"
+                                    className="form-input border text-[11px] rounded-lg px-1.5 py-1 outline-none bg-card text-primary border-border"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                />
+                                <span className="text-[9px] text-muted font-bold">TO</span>
+                                <input
+                                    type="date"
+                                    className="form-input border text-[11px] rounded-lg px-1.5 py-1 outline-none bg-card text-primary border-border"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                />
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -190,15 +294,17 @@ const FinancialsPage = () => {
                 <div className={`bg-card border border-border rounded-xl p-5 shadow-soft hover:border-emerald-500/50 transition-all flex flex-col justify-between group`}>
                     <div className="flex justify-between items-start mb-4">
                         <p className="text-[10px] text-muted uppercase tracking-widest font-bold">Net Profit/Loss</p>
-                        <div className={`p-2 rounded-lg group-hover:scale-110 transition-transform ${summary.profit_loss >= 0 ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}>
+                        <div className={`p-2 rounded-lg group-hover:scale-110 transition-transform ${(summary.profit || summary.profit_loss >= 0) ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}>
                             <HiOutlineCurrencyRupee className="w-5 h-5" />
                         </div>
                     </div>
                     <div>
-                        <p className={`text-2xl font-black mb-1 ${summary.profit_loss >= 0 ? "text-emerald-500" : "text-red-500"}`}>
-                            {formatCurrency(summary.profit_loss)}
+                        <p className={`text-2xl font-black mb-1 ${(summary.profit > 0 || (summary.profit === undefined && summary.profit_loss >= 0)) ? "text-emerald-500" : summary.loss > 0 ? "text-red-500" : "text-primary"}`}>
+                            {summary.profit > 0 ? formatCurrency(summary.profit) : summary.loss > 0 ? formatCurrency(-summary.loss) : formatCurrency(summary.profit_loss)}
                         </p>
-                        <span className="text-xs text-secondary font-medium">Net operating margin</span>
+                        <span className="text-xs text-secondary font-medium">
+                            {summary.profit > 0 ? 'Net Profit' : summary.loss > 0 ? 'Net Loss' : 'Breakeven'}
+                        </span>
                     </div>
                 </div>
 

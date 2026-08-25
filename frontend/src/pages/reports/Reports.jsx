@@ -13,7 +13,7 @@ import {
   HiOutlineCog
 } from "react-icons/hi";
 import { Button } from "../../components/common";
-import { getDashboardStats, getChartsData, getInsights } from "../../api/report.api";
+import { getDashboardStats, getChartsData, getInsights, downloadReportCSV, downloadReportPDF } from "../../api/report.api";
 import { getVehicles } from "../../api/vehicle.api";
 import { getDrivers } from "../../api/driver.api";
 import {
@@ -98,132 +98,50 @@ const Reports = () => {
         window.print();
     };
 
-    const exportToCSV = () => {
-        if (!stats) return;
-        let csvRows = [];
-
-        csvRows.push("TransitOps Analytics & Fleet Management Report");
-        csvRows.push(`Generated Date,${new Date().toLocaleString()}`);
-        csvRows.push(`Period Filter,${period}`);
-        csvRows.push("");
-
-        csvRows.push("METRIC SUMMARY,VALUE");
-        csvRows.push(`Total Vehicles,${stats.total_vehicles}`);
-        csvRows.push(`Available Vehicles,${stats.available_vehicles}`);
-        csvRows.push(`On Trip Vehicles,${stats.on_trip_vehicles}`);
-        csvRows.push(`Maintenance Vehicles,${stats.maintenance_vehicles}`);
-        csvRows.push(`Total Drivers,${stats.total_drivers}`);
-        csvRows.push(`Total Trips,${stats.total_trips}`);
-        csvRows.push(`Active / Dispatched Trips,${stats.active_trips}`);
-        csvRows.push(`Completed Trips,${stats.completed_trips}`);
-        csvRows.push(`Fleet Utilization,${stats.fleet_utilization}%`);
-        csvRows.push(`Vehicle Availability,${stats.vehicle_availability}%`);
-        csvRows.push(`Total Operational Cost (₹),${stats.monthly_operational_cost}`);
-        csvRows.push(`Fuel Cost (₹),${stats.monthly_fuel_cost}`);
-        csvRows.push(`Maintenance Cost (₹),${stats.monthly_maintenance_cost}`);
-        csvRows.push(`General Expenses (₹),${stats.monthly_expense_cost}`);
-        csvRows.push("");
-
-        if (charts?.expense_breakdown) {
-            csvRows.push("EXPENSE CATEGORY,AMOUNT (₹)");
-            charts.expense_breakdown.forEach(item => {
-                csvRows.push(`${item.category},${item.amount}`);
-            });
-            csvRows.push("");
+    const exportToCSV = async () => {
+        try {
+            const params = {
+                period,
+                ...(period === "Custom" && startDate ? { startDate } : {}),
+                ...(period === "Custom" && endDate ? { endDate } : {}),
+                ...(selectedVehicle ? { vehicleId: selectedVehicle } : {}),
+                ...(selectedDriver ? { driverId: selectedDriver } : {}),
+                ...(selectedStatus ? { status: selectedStatus } : {})
+            };
+            const res = await downloadReportCSV(params);
+            const url = window.URL.createObjectURL(new Blob([res.data]));
+            const link = document.createElement("a");
+            link.href = url;
+            link.setAttribute("download", `transitops_report_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        } catch (err) {
+            console.error("Backend CSV export failed:", err);
         }
-
-        if (insights?.length > 0) {
-            csvRows.push("AUTOMATED KEY INSIGHTS");
-            insights.forEach((ins, idx) => {
-                csvRows.push(`"${idx + 1}. ${ins.replace(/"/g, '""')}"`);
-            });
-        }
-
-        const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `transitops_report_${new Date().toISOString().slice(0,10)}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
     };
 
-    const exportToPDF = () => {
-        if (!stats) return;
-        const doc = new jsPDF();
-        
-        // Header styling
-        doc.setFontSize(22);
-        doc.setTextColor(201, 138, 28); // Accent color
-        doc.text("TransitOps", 14, 22);
-        
-        doc.setFontSize(14);
-        doc.setTextColor(40);
-        doc.text("Enterprise Fleet Analytics Report", 14, 30);
-        
-        doc.setFontSize(9);
-        doc.setTextColor(100);
-        doc.text(`Generated: ${new Date().toLocaleString()}  |  Period: ${period}`, 14, 37);
-        doc.setLineWidth(0.5);
-        doc.setDrawColor(200, 200, 200);
-        doc.line(14, 40, 196, 40);
-
-        // Core Fleet Metrics Table
-        doc.autoTable({
-            startY: 45,
-            head: [['Fleet & Operations Metric', 'Value']],
-            body: [
-                ['Total Fleet Vehicles', `${stats.total_vehicles}`],
-                ['Available Vehicles', `${stats.available_vehicles}`],
-                ['Vehicles On Trip', `${stats.on_trip_vehicles}`],
-                ['Vehicles In Maintenance Shop', `${stats.maintenance_vehicles}`],
-                ['Fleet Availability Rate', `${stats.vehicle_availability}%`],
-                ['Fleet Utilization Rate', `${stats.fleet_utilization}%`],
-                ['Total Active Drivers', `${stats.total_drivers}`],
-                ['Total Trips Logged', `${stats.total_trips}`],
-                ['Ongoing / Dispatched Trips', `${stats.active_trips}`],
-                ['Completed Trips', `${stats.completed_trips}`]
-            ],
-            theme: 'grid',
-            headStyles: { fillColor: [201, 138, 28] }
-        });
-
-        // Financial Summary Table
-        doc.autoTable({
-            startY: doc.lastAutoTable.finalY + 10,
-            head: [['Financial Expense Category', 'Cost (INR ₹)']],
-            body: [
-                ['Total Fuel Costs', `₹ ${Number(stats.monthly_fuel_cost).toLocaleString()}`],
-                ['Maintenance Costs', `₹ ${Number(stats.monthly_maintenance_cost).toLocaleString()}`],
-                ['General Operational Expenses', `₹ ${Number(stats.monthly_expense_cost).toLocaleString()}`],
-                ['Aggregated Total Operational Cost', `₹ ${Number(stats.monthly_operational_cost).toLocaleString()}`]
-            ],
-            theme: 'grid',
-            headStyles: { fillColor: [59, 130, 246] }
-        });
-
-        // Key Automated Insights Section
-        if (insights && insights.length > 0) {
-            let currentY = doc.lastAutoTable.finalY + 12;
-            if (currentY > 250) {
-                doc.addPage();
-                currentY = 20;
-            }
-            doc.setFontSize(12);
-            doc.setTextColor(40);
-            doc.text("Automated Fleet Insights", 14, currentY);
-            currentY += 6;
-
-            doc.setFontSize(9);
-            doc.setTextColor(80);
-            insights.forEach((insight, idx) => {
-                doc.text(`• ${insight}`, 14, currentY, { maxWidth: 180 });
-                currentY += 6;
-            });
+    const exportToPDF = async () => {
+        try {
+            const params = {
+                period,
+                ...(period === "Custom" && startDate ? { startDate } : {}),
+                ...(period === "Custom" && endDate ? { endDate } : {}),
+                ...(selectedVehicle ? { vehicleId: selectedVehicle } : {}),
+                ...(selectedDriver ? { driverId: selectedDriver } : {}),
+                ...(selectedStatus ? { status: selectedStatus } : {})
+            };
+            const res = await downloadReportPDF(params);
+            const url = window.URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
+            const link = document.createElement("a");
+            link.href = url;
+            link.setAttribute("download", `transitops_report_${new Date().toISOString().slice(0,10)}.pdf`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        } catch (err) {
+            console.error("Backend PDF export failed:", err);
         }
-
-        doc.save(`transitops_report_${new Date().toISOString().slice(0,10)}.pdf`);
     };
 
     if (loading) return (

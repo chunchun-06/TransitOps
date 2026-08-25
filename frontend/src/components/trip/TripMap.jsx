@@ -37,6 +37,8 @@ const createMarkerIcon = (text, color) => {
   });
 };
 
+const isValidLatLng = (pos) => Array.isArray(pos) && pos.length === 2 && !isNaN(pos[0]) && !isNaN(pos[1]) && pos[0] !== null && pos[1] !== null;
+
 const startMarkerIcon = createMarkerIcon('A', '#10B981');
 const destMarkerIcon = createMarkerIcon('B', '#EF4444');
 
@@ -161,6 +163,30 @@ const fetchRouteGeometry = async (start, dest) => {
   return null;
 };
 
+const tollMarkerIcon = L.divIcon({
+  className: 'custom-toll-icon',
+  html: `
+    <div style="
+      background-color: #F59E0B;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 2px solid white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+      color: white;
+      font-weight: bold;
+      font-size: 11px;
+      font-family: system-ui, -apple-system, sans-serif;
+    ">🛑</div>
+  `,
+  iconSize: [26, 26],
+  iconAnchor: [13, 13],
+  popupAnchor: [0, -13]
+});
+
 const TripMap = ({ 
   trip, 
   vehicle, 
@@ -169,7 +195,10 @@ const TripMap = ({
   onSelectLocation,
   draftSource,
   draftDestination,
-  onRouteCalculated
+  sourceText,
+  destinationText,
+  onRouteCalculated,
+  tolls = []
 }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -179,23 +208,53 @@ const TripMap = ({
   const [routeInfo, setRouteInfo] = useState(null);
 
   // Active source/dest strings to display
-  const activeSourceStr = draftSource?.address || trip?.source || "";
-  const activeDestStr = draftDestination?.address || trip?.destination || "";
+  const activeSourceStr = draftSource?.address || sourceText || trip?.source || "";
+  const activeDestStr = draftDestination?.address || destinationText || trip?.destination || "";
+
+  // Calculate toll positions along the route — every toll MUST get a position
+  const tollPositions = tolls.map((t, idx) => {
+    let pos = null;
+    const fraction = (idx + 1) / (tolls.length + 1);
+
+    if (routeCoords.length >= 2) {
+      // Interpolate along actual route polyline
+      const coordIdx = Math.min(
+        Math.floor(fraction * (routeCoords.length - 1)),
+        routeCoords.length - 1
+      );
+      pos = routeCoords[coordIdx];
+    } else if (isValidLatLng(startPos) && isValidLatLng(destPos)) {
+      // Fallback: linear interpolation between start and destination
+      const lat = startPos[0] + fraction * (destPos[0] - startPos[0]);
+      const lng = startPos[1] + fraction * (destPos[1] - startPos[1]);
+      pos = [lat, lng];
+    } else if (isValidLatLng(startPos)) {
+      // Only source known — cluster near source
+      pos = [startPos[0] + fraction * 0.05, startPos[1] + fraction * 0.05];
+    } else if (isValidLatLng(destPos)) {
+      // Only destination known — cluster near destination
+      pos = [destPos[0] - fraction * 0.05, destPos[1] - fraction * 0.05];
+    }
+    return { ...t, pos };
+  });
 
   useEffect(() => {
     let isMounted = true;
 
     const resolveMapData = async () => {
-      // 1. If draft coordinates exist from map selection
-      let sRes = draftSource ? { lat: draftSource.lat, lng: draftSource.lng } : null;
-      let dRes = draftDestination ? { lat: draftDestination.lat, lng: draftDestination.lng } : null;
-
-      // 2. Geocode if text provided without explicit draft coords
-      if (!sRes && activeSourceStr) {
-        sRes = await geocodeAddress(activeSourceStr);
+      // 1. Resolve coordinates from props/state or fallback to trip coordinates
+      let sRes = null;
+      if (draftSource?.lat != null) {
+        sRes = { lat: parseFloat(draftSource.lat), lng: parseFloat(draftSource.lng) };
+      } else if (trip?.source_latitude != null && trip?.source_longitude != null) {
+        sRes = { lat: parseFloat(trip.source_latitude), lng: parseFloat(trip.source_longitude) };
       }
-      if (!dRes && activeDestStr) {
-        dRes = await geocodeAddress(activeDestStr);
+
+      let dRes = null;
+      if (draftDestination?.lat != null) {
+        dRes = { lat: parseFloat(draftDestination.lat), lng: parseFloat(draftDestination.lng) };
+      } else if (trip?.destination_latitude != null && trip?.destination_longitude != null) {
+        dRes = { lat: parseFloat(trip.destination_latitude), lng: parseFloat(trip.destination_longitude) };
       }
 
       if (!isMounted) return;
@@ -205,11 +264,8 @@ const TripMap = ({
         setDestPos(null);
         setRouteCoords([]);
         setRouteInfo(null);
-        if (activeSourceStr || activeDestStr) {
-          setError(`Unable to locate coordinates for '${activeSourceStr}' or '${activeDestStr}'.`);
-        } else {
-          setError(null);
-        }
+        setLoading(false);
+        setError(null);
         return;
       }
 
@@ -238,28 +294,57 @@ const TripMap = ({
               });
             }
           } else {
+            // OSRM unavailable — draw straight line and estimate distance
+            const R = 6371;
+            const dLat = (dRes.lat - sRes.lat) * Math.PI / 180;
+            const dLng = (dRes.lng - sRes.lng) * Math.PI / 180;
+            const a = Math.sin(dLat/2)**2 + Math.cos(sRes.lat * Math.PI/180) * Math.cos(dRes.lat * Math.PI/180) * Math.sin(dLng/2)**2;
+            const straightLineKm = (R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))).toFixed(1);
+            const estimatedMin = Math.round((straightLineKm / 50) * 60);
+
             setRouteCoords([[sRes.lat, sRes.lng], [dRes.lat, dRes.lng]]);
-            setRouteInfo(null);
+            setRouteInfo({ distance: straightLineKm, duration: estimatedMin });
+            if (onRouteCalculated) {
+              onRouteCalculated({
+                distanceKm: parseFloat(straightLineKm),
+                durationMin: estimatedMin,
+                sourceLat: sRes.lat,
+                sourceLng: sRes.lng,
+                destLat: dRes.lat,
+                destLng: dRes.lng
+              });
+            }
           }
         }
       } else {
         setRouteCoords([]);
         setRouteInfo(null);
       }
+
+      if (isMounted) setLoading(false);
     };
 
     resolveMapData();
 
     return () => { isMounted = false; };
-  }, [activeSourceStr, activeDestStr, draftSource?.lat, draftSource?.lng, draftDestination?.lat, draftDestination?.lng]);
+  }, [
+    draftSource?.lat, 
+    draftSource?.lng, 
+    draftDestination?.lat, 
+    draftDestination?.lng, 
+    trip?.source_latitude, 
+    trip?.source_longitude, 
+    trip?.destination_latitude, 
+    trip?.destination_longitude
+  ]);
 
   const vName = vehicle ? `${vehicle.vehicle_name} (${vehicle.registration_no})` : "Unassigned Vehicle";
   const dName = driver ? driver.name : "Unassigned Driver";
 
-  const mapBounds = [];
-  if (startPos) mapBounds.push(startPos);
-  if (destPos) mapBounds.push(destPos);
-  const centerPos = startPos || destPos || [19.076, 72.8777];
+  const boundsToFit = [];
+  if (isValidLatLng(startPos)) boundsToFit.push(startPos);
+  if (isValidLatLng(destPos)) boundsToFit.push(destPos);
+  const centerPos = isValidLatLng(startPos) ? startPos : (isValidLatLng(destPos) ? destPos : [19.076, 72.8777]);
 
   return (
     <div className="bg-card border border-border rounded-2xl p-5 shadow-soft flex flex-col gap-4 relative">
@@ -344,10 +429,10 @@ const TripMap = ({
 
             <MapClickHandler selectingMode={selectingMode} onSelectLocation={onSelectLocation} />
 
-            {mapBounds.length > 0 && <MapBoundsController bounds={mapBounds} />}
+            {boundsToFit.length > 0 && <MapBoundsController bounds={boundsToFit} />}
 
             {/* Start Marker A */}
-            {startPos && (
+            {isValidLatLng(startPos) && (
               <Marker position={startPos} icon={startMarkerIcon}>
                 <Popup>
                   <div className="text-xs font-sans">
@@ -360,7 +445,7 @@ const TripMap = ({
             )}
 
             {/* Destination Marker B */}
-            {destPos && (
+            {isValidLatLng(destPos) && (
               <Marker position={destPos} icon={destMarkerIcon}>
                 <Popup>
                   <div className="text-xs font-sans">
@@ -371,6 +456,25 @@ const TripMap = ({
                 </Popup>
               </Marker>
             )}
+
+            {/* Toll Gate Markers along Route */}
+            {tollPositions.map((t, idx) => (
+              t && isValidLatLng(t.pos) && (
+                <Marker key={t.id || idx} position={t.pos} icon={tollMarkerIcon}>
+                  <Popup>
+                    <div className="text-xs font-sans min-w-[170px]">
+                      <strong className="text-amber-600 block mb-1">🛑 Toll Plaza #{idx + 1}</strong>
+                      <p className="font-bold text-gray-900 leading-tight">{t.toll_name || "Toll Gate"}</p>
+                      <p className="text-gray-600 text-[11px] mt-0.5">{t.highway || "Highway"} • {t.location || "Corridor"}</p>
+                      <div className="mt-2 pt-1.5 border-t border-gray-200 flex justify-between font-bold text-emerald-700 text-xs">
+                        <span>Fee ({t.vehicle_class || "Vehicle"}):</span>
+                        <span>₹{parseFloat(t.toll_amount || 0).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </Popup>
+                </Marker>
+              )
+            ))}
 
             {/* Polyline Route */}
             {routeCoords.length > 0 && (

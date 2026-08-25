@@ -4,3 +4,5 @@ export const getDashboardStats = (params = {}) => api.get("/reports/dashboard-st
 export const getChartsData = (params = {}) => api.get("/reports/charts", { params });
 export const getInsights = (params = {}) => api.get("/reports/insights", { params });
 
+export const downloadReportCSV = (params = {}) => api.get("/reports/export/csv", { params, responseType: 'blob' });
+export const downloadReportPDF = (params = {}) => api.get("/reports/export/pdf", { params, responseType: 'blob' });

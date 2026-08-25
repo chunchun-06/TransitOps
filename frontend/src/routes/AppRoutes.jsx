@@ -7,17 +7,19 @@ import ProtectedRoute  from "../components/auth/ProtectedRoute";
 import RoleGuard       from "../components/auth/RoleGuard";
 import Unauthorized    from "../pages/auth/Unauthorized";
 import NotFound        from "../pages/NotFound";
-import Vehicles    from "../pages/vehicle/VehiclePage";
-import Drivers     from "../pages/driver/Drivers";
-import Trips       from "../pages/trip/Trips";
-import Maintenance from "../pages/maintenance/Maintenance";
-import Fuel        from "../pages/fuel/Fuel";
-import Expenses    from "../pages/expense/Expenses";
-import Reports     from "../pages/reports/Reports";
-import Users       from "../pages/users/Users";
-import ChangePassword from "../pages/auth/ChangePassword";
-import Profile     from "../pages/settings/Profile";
-import Settings    from "../pages/settings/Settings";
+import Vehicles        from "../pages/vehicle/VehiclePage";
+import VehicleDetails  from "../pages/vehicle/VehicleDetails";
+import Drivers         from "../pages/driver/Drivers";
+import DriverDetails   from "../pages/driver/DriverDetails";
+import Trips           from "../pages/trip/Trips";
+import Maintenance     from "../pages/maintenance/Maintenance";
+import Fuel            from "../pages/fuel/Fuel";
+import Expenses        from "../pages/expense/Expenses";
+import Reports         from "../pages/reports/Reports";
+import Users           from "../pages/users/Users";
+import ChangePassword  from "../pages/auth/ChangePassword";
+import Profile         from "../pages/settings/Profile";
+import Settings        from "../pages/settings/Settings";
 // Financial Analyst – read-only module pages
 import FinanceDrivers     from "../pages/finance/FinanceDrivers";
 import FinanceTrips       from "../pages/finance/FinanceTrips";
@@ -62,10 +64,20 @@ const AppRoutes = () => {
                             <Vehicles />
                         </RoleGuard>
                     } />
+                    <Route path="/vehicles/:id" element={
+                        <RoleGuard roles={["Fleet Manager", "Dispatcher", "Admin"]}>
+                            <VehicleDetails />
+                        </RoleGuard>
+                    } />
                     
                     <Route path="/drivers" element={
                         <RoleGuard roles={["Fleet Manager", "Dispatcher", "Admin"]}>
                             <Drivers />
+                        </RoleGuard>
+                    } />
+                    <Route path="/drivers/:id" element={
+                        <RoleGuard roles={["Fleet Manager", "Dispatcher", "Admin"]}>
+                            <DriverDetails />
                         </RoleGuard>
                     } />
 
@@ -154,8 +166,6 @@ const AppRoutes = () => {
 
                 {/* 404 fallback */}
                 <Route path="*" element={<NotFound />} />
-
-
 
                 <Route
                     path="*"

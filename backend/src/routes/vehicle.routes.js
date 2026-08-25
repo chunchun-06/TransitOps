@@ -3,6 +3,7 @@ const router = express.Router();
 const vehicleController = require('../controllers/vehicle.controller');
 const authenticate = require('../middlewares/auth.middleware');
 const authorize = require('../middlewares/role.middleware');
+const upload = require('../middleware/upload.middleware');
 
 router.use(authenticate);
 
@@ -19,5 +20,12 @@ router.route('/:id')
     .get(vehicleController.getVehicleById)
     .put(authorize('Admin', 'Fleet Manager'), vehicleController.updateVehicle)
     .delete(authorize('Admin', 'Fleet Manager'), vehicleController.deleteVehicle);
+
+router.patch('/:id/status', authorize('Admin', 'Fleet Manager', 'Dispatcher'), vehicleController.updateStatus);
+router.post('/:id/assign-driver', authorize('Admin', 'Fleet Manager', 'Dispatcher'), vehicleController.assignDriver);
+router.put('/:id/assign-driver', authorize('Admin', 'Fleet Manager', 'Dispatcher'), vehicleController.assignDriver);
+router.post('/:id/assign', authorize('Admin', 'Fleet Manager', 'Dispatcher'), vehicleController.assignDriver);
+router.put('/:id/assign', authorize('Admin', 'Fleet Manager', 'Dispatcher'), vehicleController.assignDriver);
+router.post('/:id/photo', authorize('Admin', 'Fleet Manager', 'Dispatcher'), upload.single('photo'), vehicleController.uploadPhoto);
 
 module.exports = router;

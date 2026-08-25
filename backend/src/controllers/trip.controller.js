@@ -68,6 +68,15 @@ exports.createTrip = async (req, res) => {
         return res.status(400).json({ message: 'Source and destination cannot be the same.' });
     }
 
+    const latS = parseFloat(source_latitude);
+    const lngS = parseFloat(source_longitude);
+    const latD = parseFloat(destination_latitude);
+    const lngD = parseFloat(destination_longitude);
+
+    if (isNaN(latS) || isNaN(lngS) || isNaN(latD) || isNaN(lngD)) {
+        return res.status(400).json({ message: 'Source and destination coordinates must be selected using suggestions or map pin.' });
+    }
+
     const distKm = parseFloat(planned_distance) || 0;
     if (distKm <= 0) {
         return res.status(400).json({ message: 'Route distance must be greater than 0. Please select source and destination on the map.' });
@@ -80,7 +89,7 @@ exports.createTrip = async (req, res) => {
 
         // 1. Validate vehicle
         const vRes = await pool.query(
-            'SELECT id, registration_no, vehicle_name, status, fuel_efficiency_kmpl, fuel_tank_capacity_liters, current_fuel_level_liters, fuel_type, odometer FROM vehicles WHERE id = $1 FOR UPDATE',
+            'SELECT id, registration_no, vehicle_name, status, fuel_efficiency_kmpl, fuel_tank_capacity_liters, current_fuel_level_liters, fuel_type, odometer, max_load_capacity FROM vehicles WHERE id = $1 FOR UPDATE',
             [vehicle_id]
         );
         if (vRes.rows.length === 0) {
@@ -91,6 +100,14 @@ exports.createTrip = async (req, res) => {
         if (vehicle.status !== 'Available') {
             await pool.query('ROLLBACK');
             return res.status(400).json({ message: `Vehicle ${vehicle.vehicle_name} (${vehicle.registration_no}) is currently ${vehicle.status} and cannot be dispatched.` });
+        }
+
+        // Validate cargo weight against vehicle max load capacity
+        const maxLoad = vehicle.max_load_capacity ? parseFloat(vehicle.max_load_capacity) : null;
+        const cargoKg = cargo_weight ? parseFloat(cargo_weight) : 0;
+        if (maxLoad !== null && cargoKg > maxLoad) {
+            await pool.query('ROLLBACK');
+            return res.status(400).json({ message: `Goods weight (${cargoKg} kg) exceeds vehicle load capacity (${maxLoad} kg).` });
         }
 
         // Check no active trip for this vehicle
@@ -115,7 +132,7 @@ exports.createTrip = async (req, res) => {
         const driver = dRes.rows[0];
         if (driver.status !== 'Available') {
             await pool.query('ROLLBACK');
-            return res.status(400).json({ message: `Driver ${driver.name} is currently ${driver.status} and cannot be assigned.` });
+            return res.status(400).json({ message: `Driver ${driver.name} is currently "${driver.status}" and cannot be dispatched. Please select an Available driver.` });
         }
         // Check license expiry
         if (driver.license_expiry && new Date(driver.license_expiry) < new Date()) {

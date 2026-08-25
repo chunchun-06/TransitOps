@@ -1,6 +1,16 @@
 import { useEffect, useState, useMemo } from "react";
-import { HiOutlineSearch, HiOutlinePlus, HiOutlinePencil, HiOutlineTrash, HiOutlineDownload, HiOutlinePrinter, HiX, HiOutlineChevronDown, HiOutlineChevronUp, HiOutlineDocumentReport, HiOutlineTruck } from "react-icons/hi";
-import { getVehicles, createVehicle, updateVehicle, deleteVehicle, bulkDeleteVehicles, bulkUpdateVehicleStatus } from "../../api/vehicle.api";
+import { useNavigate } from "react-router-dom";
+import { 
+    HiOutlineSearch, HiOutlinePlus, HiOutlinePencil, HiOutlineTrash, 
+    HiOutlineDownload, HiOutlinePrinter, HiX, HiOutlineChevronDown, 
+    HiOutlineChevronUp, HiOutlineDocumentReport, HiOutlineTruck,
+    HiOutlineEye, HiOutlineSwitchHorizontal, HiOutlineUser
+} from "react-icons/hi";
+import { 
+    getVehicles, createVehicle, updateVehicle, deleteVehicle, 
+    bulkDeleteVehicles, bulkUpdateVehicleStatus, updateVehicleStatus 
+} from "../../api/vehicle.api";
+import { getAvailableDrivers } from "../../api/driver.api";
 import { Button, Input, Select, Badge, Modal } from "../../components/common";
 
 const initialForm = {
@@ -16,13 +26,16 @@ const initialForm = {
     fuel_tank_capacity_liters: "",
     current_fuel_level_liters: "",
     engine_cc: "",
-    purchase_year: ""
+    purchase_year: "",
+    current_driver_id: ""
 };
 
 const VehiclePage = () => {
+    const navigate = useNavigate();
     const [vehicles, setVehicles] = useState([]);
+    const [drivers, setDrivers] = useState([]);
     const [loading, setLoading] = useState(false);
-    
+
     // Filters & Search
     const [searchTerm, setSearchTerm] = useState("");
     const [typeFilter, setTypeFilter] = useState("All");
@@ -41,24 +54,24 @@ const VehiclePage = () => {
 
     // Modal & Form State
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [modalMode, setModalMode] = useState("create"); // create, edit, details
+    const [modalMode, setModalMode] = useState("create");
     const [form, setForm] = useState(initialForm);
     const [currentId, setCurrentId] = useState(null);
     const [formError, setFormError] = useState("");
-    const [selectedVehicleDetails, setSelectedVehicleDetails] = useState(null);
 
-    const fetchVehicles = async () => {
+    const fetchData = async () => {
         try {
-            const res = await getVehicles();
-            setVehicles(res.data || []);
-            setSelectedIds([]); // reset selection on fetch
+            const [vRes, dRes] = await Promise.all([getVehicles(), getAvailableDrivers()]);
+            setVehicles(vRes.data || []);
+            setDrivers(dRes.data || []);
+            setSelectedIds([]);
         } catch (err) {
             console.error("Fetch vehicles error:", err);
         }
     };
 
     useEffect(() => {
-        fetchVehicles();
+        fetchData();
     }, []);
 
     const handleSort = (key) => {
@@ -71,7 +84,6 @@ const VehiclePage = () => {
 
     // Filter, Sort, and Paginate Data
     const processedVehicles = useMemo(() => {
-        // Filter
         let filtered = vehicles.filter(v => {
             const matchesSearch = v.registration_no?.toLowerCase().includes(searchTerm.toLowerCase()) || 
                                   v.vehicle_name?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -80,7 +92,6 @@ const VehiclePage = () => {
             return (matchesSearch || !searchTerm) && matchesType && matchesStatus;
         });
 
-        // Sort
         filtered.sort((a, b) => {
             if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === "asc" ? -1 : 1;
             if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === "asc" ? 1 : -1;
@@ -90,7 +101,6 @@ const VehiclePage = () => {
         return filtered;
     }, [vehicles, searchTerm, typeFilter, statusFilter, sortConfig]);
 
-    // Pagination slice
     const paginatedVehicles = useMemo(() => {
         const start = (currentPage - 1) * itemsPerPage;
         return processedVehicles.slice(start, start + itemsPerPage);
@@ -98,7 +108,6 @@ const VehiclePage = () => {
 
     const totalPages = Math.ceil(processedVehicles.length / itemsPerPage);
 
-    // Form Handlers
     const handleOpenModal = (mode = "create", vehicle = null) => {
         setModalMode(mode);
         setFormError("");
@@ -117,15 +126,14 @@ const VehiclePage = () => {
                 fuel_tank_capacity_liters: vehicle.fuel_tank_capacity_liters || "",
                 current_fuel_level_liters: vehicle.current_fuel_level_liters || "",
                 engine_cc: vehicle.engine_cc || "",
-                purchase_year: vehicle.purchase_year || ""
+                purchase_year: vehicle.purchase_year || "",
+                current_driver_id: vehicle.current_driver_id || ""
             });
             setIsModalOpen(true);
         } else if (mode === "create") {
             setCurrentId(null);
             setForm(initialForm);
             setIsModalOpen(true);
-        } else if (mode === "details" && vehicle) {
-            setSelectedVehicleDetails(vehicle);
         }
     };
 
@@ -150,6 +158,7 @@ const VehiclePage = () => {
                 current_fuel_level_liters: form.current_fuel_level_liters ? Number(form.current_fuel_level_liters) : null,
                 engine_cc: form.engine_cc ? Number(form.engine_cc) : null,
                 purchase_year: form.purchase_year ? Number(form.purchase_year) : null,
+                current_driver_id: form.current_driver_id || null
             };
 
             if (modalMode === "create") {
@@ -159,7 +168,7 @@ const VehiclePage = () => {
             }
 
             setIsModalOpen(false);
-            fetchVehicles();
+            fetchData();
         } catch (err) {
             const msg = err.response?.data?.message || "Something went wrong";
             setFormError(msg);
@@ -168,13 +177,21 @@ const VehiclePage = () => {
         }
     };
 
-    const handleDelete = async (id) => {
-        if (!window.confirm("Are you sure you want to delete this vehicle?")) return;
+    // Soft Deactivation Toggle Handler
+    const handleToggleStatus = async (vehicle) => {
+        const isRetiredOrInactive = vehicle.status === "Retired" || vehicle.status === "Inactive";
+        const nextStatus = isRetiredOrInactive ? "Available" : "Retired";
+        const promptMsg = isRetiredOrInactive
+            ? `Reactivate vehicle ${vehicle.registration_no}?`
+            : `Retire vehicle ${vehicle.registration_no}? (Will mark as Retired, preserving all historical records)`;
+        
+        if (!window.confirm(promptMsg)) return;
+
         try {
-            await deleteVehicle(id);
-            fetchVehicles();
+            await updateVehicleStatus(vehicle.id, nextStatus);
+            fetchData();
         } catch (err) {
-            alert(err.response?.data?.message || "Failed to delete");
+            alert(err.response?.data?.message || "Failed to update vehicle status");
         }
     };
 
@@ -190,24 +207,24 @@ const VehiclePage = () => {
     };
 
     const handleBulkDelete = async () => {
-        if (!window.confirm(`Delete ${selectedIds.length} vehicles?`)) return;
+        if (!window.confirm(`Deactivate ${selectedIds.length} selected vehicle(s)?`)) return;
         try {
             await bulkDeleteVehicles(selectedIds);
-            fetchVehicles();
+            fetchData();
         } catch (err) {
-            alert(err.response?.data?.message || "Bulk delete failed");
+            alert(err.response?.data?.message || "Bulk deactivation failed");
         }
     };
 
     const handleBulkStatusChange = async () => {
         if (!bulkStatus) return;
-        if (!window.confirm(`Change status of ${selectedIds.length} vehicles to ${bulkStatus}?`)) return;
+        if (!window.confirm(`Change status of ${selectedIds.length} vehicle(s) to ${bulkStatus}?`)) return;
         try {
             await bulkUpdateVehicleStatus(selectedIds, bulkStatus);
             setBulkStatus("");
-            fetchVehicles();
+            fetchData();
         } catch (err) {
-            alert(err.response?.data?.message || "Bulk update failed");
+            alert(err.response?.data?.message || "Bulk status update failed");
         }
     };
 
@@ -236,7 +253,6 @@ const VehiclePage = () => {
         window.print();
     };
 
-    const formatCurrency = (val) => val ? Number(val).toLocaleString() : "—";
     const formatNumber = (val) => val ? Number(val).toLocaleString() : "—";
 
     const SortIcon = ({ column }) => {
@@ -252,7 +268,7 @@ const VehiclePage = () => {
                 
                 <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
                     <Select value={typeFilter} onChange={(e) => {setTypeFilter(e.target.value); setCurrentPage(1);}} options={[{ label: "Type: All", value: "All" }, { label: "Van", value: "Van" }, { label: "Truck", value: "Truck" }, { label: "Mini", value: "Mini" }]} className="w-[140px]" />
-                    <Select value={statusFilter} onChange={(e) => {setStatusFilter(e.target.value); setCurrentPage(1);}} options={[{ label: "Status: All", value: "All" }, { label: "Available", value: "Available" }, { label: "On Trip", value: "On Trip" }, { label: "In Shop", value: "In Shop" }, { label: "Retired", value: "Retired" }]} className="w-[140px]" />
+                    <Select value={statusFilter} onChange={(e) => {setStatusFilter(e.target.value); setCurrentPage(1);}} options={[{ label: "Status: All", value: "All" }, { label: "Available", value: "Available" }, { label: "On Trip", value: "On Trip" }, { label: "In Shop", value: "In Shop" }, { label: "Retired", value: "Retired" }, { label: "Inactive", value: "Inactive" }]} className="w-[140px]" />
                     <div className="relative flex-1 min-w-[200px]">
                         <HiOutlineSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted w-4 h-4" />
                         <input type="text" placeholder="Search reg. no or model..." value={searchTerm} onChange={(e) => {setSearchTerm(e.target.value); setCurrentPage(1);}} className="form-input border text-sm rounded-lg pl-10 pr-4 py-2.5 outline-none transition-colors w-full" />
@@ -280,9 +296,10 @@ const VehiclePage = () => {
                             <option value="Available">Available</option>
                             <option value="In Shop">In Shop</option>
                             <option value="Retired">Retired</option>
+                            <option value="Inactive">Inactive</option>
                         </select>
                         <Button variant="secondary" onClick={handleBulkStatusChange} disabled={!bulkStatus} className="py-1.5 text-sm">Update</Button>
-                        <Button variant="secondary" onClick={handleBulkDelete} className="py-1.5 text-sm text-danger border-red-500/30 hover:bg-danger/10">Delete Selected</Button>
+                        <Button variant="secondary" onClick={handleBulkDelete} className="py-1.5 text-sm text-danger border-red-500/30 hover:bg-danger/10">Deactivate Selected</Button>
                     </div>
                 </div>
             )}
@@ -302,6 +319,9 @@ const VehiclePage = () => {
                                 <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider cursor-pointer hover:text-secondary transition-colors" onClick={() => handleSort("vehicle_name")}>
                                     Name/Model <SortIcon column="vehicle_name" />
                                 </th>
+                                <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider">
+                                    Assigned Driver
+                                </th>
                                 <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider cursor-pointer hover:text-secondary transition-colors" onClick={() => handleSort("vehicle_type")}>
                                     Type <SortIcon column="vehicle_type" />
                                 </th>
@@ -320,18 +340,39 @@ const VehiclePage = () => {
                         <tbody className="divide-y divide-border">
                             {paginatedVehicles.length === 0 ? (
                                 <tr>
-                                    <td colSpan={8} className="px-6 py-12 text-center text-muted text-sm">
+                                    <td colSpan={9} className="px-6 py-12 text-center text-muted text-sm">
                                         No vehicles found matching your criteria.
                                     </td>
                                 </tr>
                             ) : (
                                 paginatedVehicles.map((vehicle) => (
-                                    <tr key={vehicle.id} className={`hover:bg-primary/[0.02] transition-colors group ${selectedIds.includes(vehicle.id) ? 'bg-accent/5' : ''}`}>
+                                    <tr key={vehicle.id} className={`hover:bg-primary/[0.02] transition-colors group ${selectedIds.includes(vehicle.id) ? 'bg-accent/5' : ''} ${vehicle.status === 'Inactive' ? 'opacity-60 bg-sidebar/50' : ''}`}>
                                         <td className="px-4 py-4 text-center print:hidden">
                                             <input type="checkbox" checked={selectedIds.includes(vehicle.id)} onChange={() => toggleSelectOne(vehicle.id)} className="accent-[#C98A1C] cursor-pointer" />
                                         </td>
-                                        <td className="px-6 py-4 text-sm font-semibold text-accent cursor-pointer hover:underline" onClick={() => handleOpenModal("details", vehicle)}>{vehicle.registration_no}</td>
-                                        <td className="px-6 py-4 text-sm text-secondary">{vehicle.vehicle_name}</td>
+                                        <td className="px-6 py-4 text-sm font-semibold text-accent cursor-pointer hover:underline" onClick={() => navigate(`/vehicles/${vehicle.id}`)}>
+                                            <div className="flex items-center gap-3">
+                                                {vehicle.photo_url ? (
+                                                    <img src={vehicle.photo_url} alt={vehicle.registration_no} className="w-8 h-8 rounded-lg object-cover border border-border" />
+                                                ) : (
+                                                    <div className="w-8 h-8 rounded-lg bg-sidebar border border-border flex items-center justify-center text-muted">
+                                                        <HiOutlineTruck className="w-4 h-4" />
+                                                    </div>
+                                                )}
+                                                <span>{vehicle.registration_no}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-sm text-secondary font-medium">{vehicle.vehicle_name}</td>
+                                        <td className="px-6 py-4 text-sm text-secondary">
+                                            {vehicle.current_driver_name ? (
+                                                <div className="flex items-center gap-1.5 text-emerald-400 font-medium">
+                                                    <HiOutlineUser className="w-4 h-4 shrink-0" />
+                                                    <span>{vehicle.current_driver_name}</span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-muted italic">Unassigned</span>
+                                            )}
+                                        </td>
                                         <td className="px-6 py-4 text-sm text-secondary">{vehicle.vehicle_type}</td>
                                         <td className="px-6 py-4 text-sm text-secondary">{vehicle.max_load_capacity ? `${vehicle.max_load_capacity} kg` : "—"}</td>
                                         <td className="px-6 py-4 text-sm text-secondary">{formatNumber(vehicle.odometer)} km</td>
@@ -340,14 +381,22 @@ const VehiclePage = () => {
                                         </td>
                                         <td className="px-6 py-4 text-sm text-right print:hidden">
                                             <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button onClick={() => handleOpenModal("details", vehicle)} className="p-1.5 text-secondary hover:text-blue-400 hover:bg-blue-400/10 rounded transition-colors" title="View Details">
-                                                    <HiOutlineDocumentReport className="w-4 h-4" />
+                                                <button onClick={() => navigate(`/vehicles/${vehicle.id}`)} className="p-1.5 text-secondary hover:text-blue-400 hover:bg-blue-400/10 rounded transition-colors" title="View Full Details">
+                                                    <HiOutlineEye className="w-4 h-4" />
                                                 </button>
                                                 <button onClick={() => handleOpenModal("edit", vehicle)} className="p-1.5 text-secondary hover:text-accent hover:bg-accent/10 rounded transition-colors" title="Edit">
                                                     <HiOutlinePencil className="w-4 h-4" />
                                                 </button>
-                                                <button onClick={() => handleDelete(vehicle.id)} className="p-1.5 text-secondary hover:text-danger hover:bg-red-400/10 rounded transition-colors" title="Delete">
-                                                    <HiOutlineTrash className="w-4 h-4" />
+                                                <button 
+                                                    onClick={() => handleToggleStatus(vehicle)} 
+                                                    className={`p-1.5 rounded transition-colors ${
+                                                        vehicle.status === "Inactive" 
+                                                            ? "text-emerald-400 hover:bg-emerald-400/10" 
+                                                            : "text-amber-400 hover:bg-amber-400/10"
+                                                    }`} 
+                                                    title={vehicle.status === "Inactive" ? "Reactivate Vehicle" : "Deactivate Vehicle"}
+                                                >
+                                                    <HiOutlineSwitchHorizontal className="w-4 h-4" />
                                                 </button>
                                             </div>
                                         </td>
@@ -392,9 +441,24 @@ const VehiclePage = () => {
                         </div>
                     )}
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Input label="Registration No." name="registration_no" placeholder="e.g. GJ01AB4523" value={form.registration_no} onChange={handleChange} required error={formError.toLowerCase().includes("unique") ? "Registration number already exists in the system" : ""} />
-                        <Input label="Vehicle Name/Model" name="vehicle_name" placeholder="e.g. VAN-05" value={form.vehicle_name} onChange={handleChange} required />
+                        <Input label="Vehicle Name/Model" name="vehicle_name" placeholder="e.g. Express Van 05" value={form.vehicle_name} onChange={handleChange} required />
+                        
+                        <Select 
+                            label="Map Driver Immediately" 
+                            name="current_driver_id" 
+                            value={form.current_driver_id} 
+                            onChange={handleChange} 
+                            options={[
+                                { label: "-- Select Driver --", value: "" },
+                                ...drivers.map(d => ({
+                                    label: `${d.name} (${d.license_number}) ${d.current_vehicle ? `[Assigned: ${d.current_vehicle}]` : '[Unassigned]'}`,
+                                    value: d.id
+                                }))
+                            ]}
+                        />
+
                         <Select label="Vehicle Type" name="vehicle_type" value={form.vehicle_type} onChange={handleChange} options={[{ label: "Van", value: "Van" }, { label: "Truck", value: "Truck" }, { label: "Mini", value: "Mini" }]} />
                         <Select label="Fuel Type" name="fuel_type" value={form.fuel_type} onChange={handleChange} options={[{ label: "Diesel", value: "Diesel" }, { label: "Petrol", value: "Petrol" }, { label: "Electric", value: "Electric" }, { label: "CNG", value: "CNG" }]} />
                         <Input label="Capacity (kg)" name="max_load_capacity" type="number" placeholder="e.g. 500" value={form.max_load_capacity} onChange={handleChange} />
@@ -406,111 +470,11 @@ const VehiclePage = () => {
                         <Input label="Engine CC" name="engine_cc" type="number" placeholder="e.g. 1500" value={form.engine_cc} onChange={handleChange} min="1" />
                         <Input label="Purchase Year" name="purchase_year" type="number" placeholder="e.g. 2022" value={form.purchase_year} onChange={handleChange} min="1900" max={new Date().getFullYear() + 1} />
                         {modalMode === "edit" && (
-                            <Select label="Status" name="status" value={form.status} onChange={handleChange} options={[{ label: "Available", value: "Available" }, { label: "On Trip", value: "On Trip" }, { label: "In Shop", value: "In Shop" }, { label: "Retired", value: "Retired" }]} className="md:col-span-2" />
+                            <Select label="Status" name="status" value={form.status} onChange={handleChange} options={[{ label: "Available", value: "Available" }, { label: "On Trip", value: "On Trip" }, { label: "In Shop", value: "In Shop" }, { label: "Retired", value: "Retired" }, { label: "Inactive", value: "Inactive" }]} />
                         )}
                     </div>
                 </form>
             </Modal>
-
-            {/* Vehicle Details Drawer */}
-            {selectedVehicleDetails && (
-                <>
-                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity" onClick={() => setSelectedVehicleDetails(null)}></div>
-                    <div className={`fixed inset-y-0 right-0 w-full max-w-md bg-sidebar border-l border-border shadow-2xl z-50 transform transition-transform duration-300 flex flex-col ${selectedVehicleDetails ? 'translate-x-0' : 'translate-x-full'}`}>
-                        <div className="flex items-center justify-between px-6 py-5 border-b border-border shrink-0 bg-card">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-accent/10 text-accent rounded-lg">
-                                    <HiOutlineTruck className="w-5 h-5" />
-                                </div>
-                                <div>
-                                    <h2 className="font-bold text-lg text-primary">{selectedVehicleDetails.registration_no}</h2>
-                                    <p className="text-xs text-secondary font-medium">{selectedVehicleDetails.vehicle_name}</p>
-                                </div>
-                            </div>
-                            <button onClick={() => setSelectedVehicleDetails(null)} className="p-2 text-secondary hover:text-primary bg-[#2B3038]/50 hover:bg-[#2B3038] rounded-full transition-colors">
-                                <HiX className="w-5 h-5" />
-                            </button>
-                        </div>
-                        
-                        <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
-                            <div className="space-y-4">
-                                <h3 className="text-[10px] font-bold text-muted uppercase tracking-widest border-b border-border pb-2">Status Overview</h3>
-                                <div className="flex justify-between items-center bg-card p-4 rounded-xl border border-border">
-                                    <span className="text-sm text-secondary">Current Status</span>
-                                    <Badge status={selectedVehicleDetails.status}>{selectedVehicleDetails.status}</Badge>
-                                </div>
-                                <div className="flex justify-between items-center bg-card p-4 rounded-xl border border-border">
-                                    <span className="text-sm text-secondary">Odometer</span>
-                                    <span className="text-sm font-bold text-primary">{formatNumber(selectedVehicleDetails.odometer)} km</span>
-                                </div>
-                            </div>
-
-                            <div className="space-y-4">
-                                <h3 className="text-[10px] font-bold text-muted uppercase tracking-widest border-b border-border pb-2">Specifications & Fuel</h3>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="bg-card p-4 rounded-xl border border-border">
-                                        <p className="text-xs text-muted mb-1">Vehicle Type</p>
-                                        <p className="text-sm font-semibold text-primary">{selectedVehicleDetails.vehicle_type}</p>
-                                    </div>
-                                    <div className="bg-card p-4 rounded-xl border border-border">
-                                        <p className="text-xs text-muted mb-1">Max Capacity</p>
-                                        <p className="text-sm font-semibold text-primary">{selectedVehicleDetails.max_load_capacity ? `${selectedVehicleDetails.max_load_capacity} kg` : "—"}</p>
-                                    </div>
-                                    <div className="bg-card p-4 rounded-xl border border-border">
-                                        <p className="text-xs text-muted mb-1">Fuel Type</p>
-                                        <p className="text-sm font-semibold text-primary">{selectedVehicleDetails.fuel_type || "Diesel"}</p>
-                                    </div>
-                                    <div className="bg-card p-4 rounded-xl border border-border">
-                                        <p className="text-xs text-muted mb-1">Fuel Efficiency</p>
-                                        <p className="text-sm font-semibold text-primary">{selectedVehicleDetails.fuel_efficiency_kmpl ? `${selectedVehicleDetails.fuel_efficiency_kmpl} km/L` : "—"}</p>
-                                    </div>
-                                    <div className="bg-card p-4 rounded-xl border border-border">
-                                        <p className="text-xs text-muted mb-1">Tank Capacity</p>
-                                        <p className="text-sm font-semibold text-primary">{selectedVehicleDetails.fuel_tank_capacity_liters ? `${selectedVehicleDetails.fuel_tank_capacity_liters} L` : "—"}</p>
-                                    </div>
-                                    <div className="bg-card p-4 rounded-xl border border-border">
-                                        <p className="text-xs text-muted mb-1">Current Fuel Level</p>
-                                        <p className="text-sm font-semibold text-primary">{selectedVehicleDetails.current_fuel_level_liters ? `${selectedVehicleDetails.current_fuel_level_liters} L` : "0 L"}</p>
-                                    </div>
-                                    <div className="bg-card p-4 rounded-xl border border-border">
-                                        <p className="text-xs text-muted mb-1">Engine Size</p>
-                                        <p className="text-sm font-semibold text-primary">{selectedVehicleDetails.engine_cc ? `${selectedVehicleDetails.engine_cc} cc` : "—"}</p>
-                                    </div>
-                                    <div className="bg-card p-4 rounded-xl border border-border">
-                                        <p className="text-xs text-muted mb-1">Purchase Year</p>
-                                        <p className="text-sm font-semibold text-primary">{selectedVehicleDetails.purchase_year || "—"}</p>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div className="space-y-4">
-                                <h3 className="text-[10px] font-bold text-muted uppercase tracking-widest border-b border-border pb-2">Financial</h3>
-                                <div className="bg-card p-4 rounded-xl border border-border">
-                                    <p className="text-xs text-muted mb-1">Acquisition Cost</p>
-                                    <p className="text-sm font-semibold text-accent">{formatCurrency(selectedVehicleDetails.acquisition_cost)}</p>
-                                </div>
-                                <div className="bg-card p-4 rounded-xl border border-border">
-                                    <p className="text-xs text-muted mb-1">Added On</p>
-                                    <p className="text-sm font-semibold text-primary">{new Date(selectedVehicleDetails.created_at || Date.now()).toLocaleDateString()}</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="p-4 border-t border-border bg-card shrink-0">
-                            <Button 
-                                className="w-full justify-center" 
-                                onClick={() => {
-                                    const veh = selectedVehicleDetails;
-                                    setSelectedVehicleDetails(null);
-                                    handleOpenModal("edit", veh);
-                                }}
-                            >
-                                Edit Vehicle Profile
-                            </Button>
-                        </div>
-                    </div>
-                </>
-            )}
         </div>
     );
 };

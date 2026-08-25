@@ -95,13 +95,13 @@ const Dashboard = () => {
         fetchMarketRates();
     }, [trips, vehicles, drivers]);
 
-    // Calculate Active Trip Metrics (Single source of truth derived from active dispatch trip records)
+    // Calculate Active Trip Metrics (Derived from backend dbData with context fallbacks)
     const activeTrips = trips.filter(t => t.status === "Dispatched" || t.status === "In Progress");
-    const activeVehiclesCount = vehicles.filter(v => v.status === "On Trip").length;
-    const availableVehiclesCount = vehicles.filter(v => v.status === "Available").length;
-    const maintenanceVehiclesCount = vehicles.filter(v => v.status === "In Shop").length;
-    const activeTripsCount = activeTrips.length;
-    const driversOnDutyCount = drivers.filter(d => d.status === "On Trip" || d.status === "Available").length;
+    const activeVehiclesCount = dbData?.operational?.on_trip_vehicles ?? vehicles.filter(v => v.status === "On Trip").length;
+    const availableVehiclesCount = dbData?.operational?.available_vehicles ?? vehicles.filter(v => v.status === "Available").length;
+    const maintenanceVehiclesCount = dbData?.operational?.maintenance_vehicles ?? vehicles.filter(v => v.status === "In Shop").length;
+    const activeTripsCount = dbData?.operational?.active_trips ?? activeTrips.length;
+    const driversOnDutyCount = dbData?.operational?.on_trip_drivers ?? drivers.filter(d => d.status === "On Trip" || d.status === "Available").length;
     
     // Dynamic Estimated Fuel & Cost calculation across all active dispatched trips
     const totalEstimatedFuelLiters = activeTrips.reduce((acc, t) => {
@@ -126,12 +126,12 @@ const Dashboard = () => {
         return acc + (addFuel * fp);
     }, 0);
 
-    const totalVehiclesCount = vehicles.length;
+    const totalVehiclesCount = dbData?.operational?.total_vehicles ?? vehicles.length;
     const vehicleStatusData = [
-        { label: "Available", percentage: totalVehiclesCount > 0 ? Math.round((vehicles.filter(v => v.status === 'Available').length / totalVehiclesCount) * 100) : 0, bgClass: "bg-success" },
-        { label: "On Trip", percentage: totalVehiclesCount > 0 ? Math.round((vehicles.filter(v => v.status === 'On Trip').length / totalVehiclesCount) * 100) : 0, bgClass: "bg-info" },
-        { label: "In Shop", percentage: totalVehiclesCount > 0 ? Math.round((vehicles.filter(v => v.status === 'In Shop').length / totalVehiclesCount) * 100) : 0, bgClass: "bg-warning" },
-        { label: "Retired", percentage: totalVehiclesCount > 0 ? Math.round((vehicles.filter(v => v.status === 'Retired').length / totalVehiclesCount) * 100) : 0, bgClass: "bg-danger" },
+        { label: "Available", percentage: totalVehiclesCount > 0 ? Math.round(((dbData?.operational?.available_vehicles ?? vehicles.filter(v => v.status === 'Available').length) / totalVehiclesCount) * 100) : 0, bgClass: "bg-success" },
+        { label: "On Trip", percentage: totalVehiclesCount > 0 ? Math.round(((dbData?.operational?.on_trip_vehicles ?? vehicles.filter(v => v.status === 'On Trip').length) / totalVehiclesCount) * 100) : 0, bgClass: "bg-info" },
+        { label: "In Shop", percentage: totalVehiclesCount > 0 ? Math.round(((dbData?.operational?.maintenance_vehicles ?? vehicles.filter(v => v.status === 'In Shop').length) / totalVehiclesCount) * 100) : 0, bgClass: "bg-warning" },
+        { label: "Retired", percentage: totalVehiclesCount > 0 ? Math.round(((dbData?.operational?.retired_vehicles ?? vehicles.filter(v => v.status === 'Retired').length) / totalVehiclesCount) * 100) : 0, bgClass: "bg-danger" },
     ];
 
     // Roles checking
