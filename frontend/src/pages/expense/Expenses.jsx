@@ -41,7 +41,36 @@ const Expenses = () => {
     }, []);
 
     const handleChange = (e) => {
-        setForm({ ...form, [e.target.name]: e.target.value });
+        const { name, value } = e.target;
+        setForm(prev => {
+            const updated = { ...prev, [name]: value };
+
+            if (name === "trip_id" && value) {
+                const selectedTrip = trips.find(t => String(t.id) === String(value));
+                if (selectedTrip) {
+                    const toll = selectedTrip.toll_amount !== null && selectedTrip.toll_amount !== undefined ? parseFloat(selectedTrip.toll_amount) : 0;
+                    if (toll > 0 && (updated.category === "Toll" || !updated.amount)) {
+                        updated.amount = toll.toString();
+                    }
+                    if (!updated.description || updated.description.startsWith("Toll charges for")) {
+                        updated.description = `Toll charges for TR-${String(selectedTrip.id).substring(0, 5).toUpperCase()} (${selectedTrip.source} → ${selectedTrip.destination})`;
+                    }
+                }
+            } else if (name === "category" && value === "Toll" && prev.trip_id) {
+                const selectedTrip = trips.find(t => String(t.id) === String(prev.trip_id));
+                if (selectedTrip) {
+                    const toll = selectedTrip.toll_amount !== null && selectedTrip.toll_amount !== undefined ? parseFloat(selectedTrip.toll_amount) : 0;
+                    if (toll > 0) {
+                        updated.amount = toll.toString();
+                    }
+                    if (!updated.description) {
+                        updated.description = `Toll charges for TR-${String(selectedTrip.id).substring(0, 5).toUpperCase()} (${selectedTrip.source} → ${selectedTrip.destination})`;
+                    }
+                }
+            }
+
+            return updated;
+        });
     };
 
     const handleSubmit = async (e) => {

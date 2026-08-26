@@ -95,7 +95,7 @@ export const FleetProvider = ({ children }) => {
 
                     return {
                         id: log.id,
-                        bill_number: log.bill_number || `FB-${String(log.id).substring(0, 8).toUpperCase()}`,
+                        bill_number: log.invoice_number || log.bill_number || `FB-${String(log.id).substring(0, 8).toUpperCase()}`,
                         date: safeFormatDate(log.date),
                         vehicle_id: log.vehicle_id,
                         vehicle_reg: vehicleDisplay,
@@ -107,7 +107,11 @@ export const FleetProvider = ({ children }) => {
                         volume: parseFloat(log.fuel_amount || log.volume || 0),
                         amount: parseFloat(log.cost || log.amount || 0),
                         price_per_litre: log.price_per_liter ? parseFloat(log.price_per_liter) : (log.fuel_amount ? Math.round((log.cost / log.fuel_amount) * 100) / 100 : 100),
-                        bill_file_name: log.bill_file_name || "receipt.pdf"
+                        bill_file_name: log.bill_file_name || "receipt.pdf",
+                        invoice_number: log.invoice_number || log.bill_number,
+                        receipt_vehicle_number: log.receipt_vehicle_number,
+                        payment_mode: log.payment_mode,
+                        receipt_image: log.receipt_image
                     };
                 }));
             }
@@ -159,7 +163,11 @@ export const FleetProvider = ({ children }) => {
                 cost: parseFloat(record.amount) || 0,
                 price_per_liter: parseFloat(record.price_per_litre) || null,
                 fuel_type: record.fuel_type || "Diesel",
-                date: record.date || new Date().toISOString()
+                date: record.date || new Date().toISOString(),
+                invoice_number: record.bill_number || null,
+                receipt_vehicle_number: record.receipt_vehicle_number || null,
+                payment_mode: record.payment_mode || null,
+                receipt_image: record.receipt_image || null
             };
             const response = await createFuelLog(payload);
             const created = response.data;
@@ -167,7 +175,7 @@ export const FleetProvider = ({ children }) => {
             // Map backend response to match frontend UI format
             const newRecord = {
                 id: created.id,
-                bill_number: record.bill_number || `FB-${String(created.id).substring(0, 8).toUpperCase()}`,
+                bill_number: created.invoice_number || record.bill_number || `FB-${String(created.id).substring(0, 8).toUpperCase()}`,
                 date: safeFormatDate(created.date || record.date),
                 vehicle_id: created.vehicle_id || record.vehicle_id,
                 vehicle_reg: record.vehicle_reg,
@@ -179,7 +187,11 @@ export const FleetProvider = ({ children }) => {
                 volume: parseFloat(created.fuel_amount || record.volume || 0),
                 amount: parseFloat(created.cost || record.amount || 0),
                 price_per_litre: created.price_per_liter ? parseFloat(created.price_per_liter) : (parseFloat(record.price_per_litre) || 100),
-                bill_file_name: record.bill_file_name || "receipt.pdf"
+                bill_file_name: record.bill_file_name || "receipt.pdf",
+                invoice_number: created.invoice_number || record.bill_number,
+                receipt_vehicle_number: created.receipt_vehicle_number || record.receipt_vehicle_number,
+                payment_mode: created.payment_mode || record.payment_mode,
+                receipt_image: created.receipt_image || record.receipt_image
             };
 
             setFuelRecords(prev => [newRecord, ...prev]);

@@ -114,14 +114,12 @@ class FinancialAnalyticsService {
 
         const tripData = tripsRes.rows[0];
 
-        // 2. FUEL LOGS
-        // If driverId filter is provided, join trips to match driver_id, or vehicles.current_driver_id
+        // 2. FUEL LOGS (For volume metrics only, cost is from expenses ledger)
         let fuelQuery = '';
         let fuelParams = [];
         if (driverId) {
             fuelQuery = `
-                SELECT COALESCE(SUM(f.cost), 0)::float AS total_fuel_cost,
-                       COALESCE(SUM(f.fuel_amount), 0)::float AS total_fuel_liters
+                SELECT COALESCE(SUM(f.fuel_amount), 0)::float AS total_fuel_liters
                 FROM fuel f
                 LEFT JOIN trips t ON f.trip_id = t.id
                 LEFT JOIN vehicles v ON f.vehicle_id = v.id
@@ -135,8 +133,7 @@ class FinancialAnalyticsService {
         } else {
             const fuelFilters = buildFilterClause({ dateCol: 'date', vehicleId, start, end });
             fuelQuery = `
-                SELECT COALESCE(SUM(cost), 0)::float AS total_fuel_cost,
-                       COALESCE(SUM(fuel_amount), 0)::float AS total_fuel_liters
+                SELECT COALESCE(SUM(fuel_amount), 0)::float AS total_fuel_liters
                 FROM fuel
                 ${fuelFilters.clause}
             `;
@@ -145,45 +142,20 @@ class FinancialAnalyticsService {
         const fuelRes = await pool.query(fuelQuery, fuelParams);
         const fuelData = fuelRes.rows[0];
 
-        // 3. MAINTENANCE LOGS
-        let maintQuery = '';
-        let maintParams = [];
-        if (driverId) {
-            maintQuery = `
-                SELECT COALESCE(SUM(m.cost), 0)::float AS total_maintenance_cost
-                FROM maintenance m
-                LEFT JOIN vehicles v ON m.vehicle_id = v.id
-                WHERE v.current_driver_id = $1
-            `;
-            maintParams = [driverId];
-            let idx = 2;
-            if (vehicleId) { maintQuery += ` AND m.vehicle_id = $${idx++}`; maintParams.push(vehicleId); }
-            if (start) { maintQuery += ` AND m.service_date >= $${idx++}`; maintParams.push(start.toISOString()); }
-            if (end) { maintQuery += ` AND m.service_date <= $${idx++}`; maintParams.push(end.toISOString()); }
-        } else {
-            const maintFilters = buildFilterClause({ dateCol: 'service_date', vehicleId, start, end });
-            maintQuery = `
-                SELECT COALESCE(SUM(cost), 0)::float AS total_maintenance_cost
-                FROM maintenance
-                ${maintFilters.clause}
-            `;
-            maintParams = maintFilters.params;
-        }
-        const maintRes = await pool.query(maintQuery, maintParams);
-        const maintData = maintRes.rows[0];
-
-        // 4. GENERAL EXPENSES (Excluding Fuel, Maintenance, and Toll to prevent double counting)
+        // 3. EXPENSES LEDGER (Centralized Costs)
         let expQuery = '';
         let expParams = [];
         if (driverId) {
             expQuery = `
-                SELECT COALESCE(SUM(e.amount), 0)::float AS total_other_cost,
-                       COALESCE(SUM(e.amount) FILTER (WHERE LOWER(e.category) = 'toll'), 0)::float AS expense_toll_cost
+                SELECT 
+                    COALESCE(SUM(amount) FILTER (WHERE UPPER(e.category) = 'FUEL'), 0)::float AS total_fuel_cost,
+                    COALESCE(SUM(amount) FILTER (WHERE UPPER(e.category) = 'MAINTENANCE'), 0)::float AS total_maintenance_cost,
+                    COALESCE(SUM(amount) FILTER (WHERE UPPER(e.category) = 'TOLL'), 0)::float AS total_toll_cost,
+                    COALESCE(SUM(amount) FILTER (WHERE UPPER(e.category) NOT IN ('FUEL', 'MAINTENANCE', 'TOLL')), 0)::float AS total_other_cost
                 FROM expenses e
                 LEFT JOIN trips t ON e.trip_id = t.id
                 LEFT JOIN vehicles v ON e.vehicle_id = v.id
                 WHERE (t.driver_id = $1 OR v.current_driver_id = $1)
-                AND LOWER(e.category) NOT IN ('fuel', 'maintenance')
             `;
             expParams = [driverId];
             let idx = 2;
@@ -192,14 +164,14 @@ class FinancialAnalyticsService {
             if (end) { expQuery += ` AND e.date <= $${idx++}`; expParams.push(end.toISOString()); }
         } else {
             const expFilters = buildFilterClause({ dateCol: 'date', vehicleId, start, end });
-            const whereClause = expFilters.clause
-                ? `${expFilters.clause} AND LOWER(category) NOT IN ('fuel', 'maintenance')`
-                : `WHERE LOWER(category) NOT IN ('fuel', 'maintenance')`;
             expQuery = `
-                SELECT COALESCE(SUM(amount), 0)::float AS total_other_cost,
-                       COALESCE(SUM(amount) FILTER (WHERE LOWER(category) = 'toll'), 0)::float AS expense_toll_cost
+                SELECT 
+                    COALESCE(SUM(amount) FILTER (WHERE UPPER(category) = 'FUEL'), 0)::float AS total_fuel_cost,
+                    COALESCE(SUM(amount) FILTER (WHERE UPPER(category) = 'MAINTENANCE'), 0)::float AS total_maintenance_cost,
+                    COALESCE(SUM(amount) FILTER (WHERE UPPER(category) = 'TOLL'), 0)::float AS total_toll_cost,
+                    COALESCE(SUM(amount) FILTER (WHERE UPPER(category) NOT IN ('FUEL', 'MAINTENANCE', 'TOLL')), 0)::float AS total_other_cost
                 FROM expenses
-                ${whereClause}
+                ${expFilters.clause}
             `;
             expParams = expFilters.params;
         }
@@ -208,12 +180,11 @@ class FinancialAnalyticsService {
 
         // Computations
         const revenue = parseFloat(tripData.total_revenue || 0);
-        const fuelCost = parseFloat(fuelData.total_fuel_cost || 0);
-        const maintenanceCost = parseFloat(maintData.total_maintenance_cost || 0);
-        const tollCost = parseFloat(tripData.trip_toll_amount || 0) + parseFloat(expData.expense_toll_cost || 0);
+        const fuelCost = parseFloat(expData.total_fuel_cost || 0);
+        const maintenanceCost = parseFloat(expData.total_maintenance_cost || 0);
+        const tollCost = parseFloat(expData.total_toll_cost || 0);
+        const generalOtherExpenses = parseFloat(expData.total_other_cost || 0);
         
-        // General expenses excluding toll (since toll is tracked separately)
-        const generalOtherExpenses = Math.max(parseFloat(expData.total_other_cost || 0) - parseFloat(expData.expense_toll_cost || 0), 0);
         const totalExpenses = fuelCost + maintenanceCost + tollCost + generalOtherExpenses;
 
         const netResult = revenue - totalExpenses;
@@ -413,9 +384,9 @@ class FinancialAnalyticsService {
             SELECT 
                 v.id, v.registration_no, v.vehicle_name, v.vehicle_type,
                 COALESCE(SUM(t.revenue) FILTER (WHERE t.status = 'Completed'), 0)::float AS revenue,
-                COALESCE((SELECT SUM(f.cost) FROM fuel f WHERE f.vehicle_id = v.id), 0)::float AS fuel_cost,
-                COALESCE((SELECT SUM(m.cost) FROM maintenance m WHERE m.vehicle_id = v.id), 0)::float AS maintenance_cost,
-                COALESCE((SELECT SUM(e.amount) FROM expenses e WHERE e.vehicle_id = v.id AND LOWER(e.category) NOT IN ('fuel', 'maintenance')), 0)::float AS other_cost
+                COALESCE((SELECT SUM(amount) FROM expenses WHERE vehicle_id = v.id AND UPPER(category) = 'FUEL'), 0)::float AS fuel_cost,
+                COALESCE((SELECT SUM(amount) FROM expenses WHERE vehicle_id = v.id AND UPPER(category) = 'MAINTENANCE'), 0)::float AS maintenance_cost,
+                COALESCE((SELECT SUM(amount) FROM expenses WHERE vehicle_id = v.id AND UPPER(category) NOT IN ('FUEL', 'MAINTENANCE')), 0)::float AS other_cost
             FROM vehicles v
             LEFT JOIN trips t ON t.vehicle_id = v.id
             ${dateWhere}

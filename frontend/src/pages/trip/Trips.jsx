@@ -65,7 +65,17 @@ const Trips = () => {
     const [errorMsg, setErrorMsg] = useState("");
 
     // Fuel State
-    const [fuelPrice, setFuelPrice] = useState(100.00);
+    const [fuelPriceData, setFuelPriceData] = useState({
+        price: 0,
+        city: 'Chennai',
+        state: 'Tamil Nadu',
+        effectiveDate: '',
+        source: '',
+        isStale: false,
+        fetchedAt: '',
+        error: ''
+    });
+    
     const [fuelPanelData, setFuelPanelData] = useState({
         efficiency: 0,
         tankCapacity: 0,
@@ -127,14 +137,30 @@ const Trips = () => {
             if (!form.vehicle_id) return;
             const veh = availableVehicles.find(v => v.id === form.vehicle_id);
             const fuelType = veh?.fuel_type || 'Diesel';
+            
+            setFuelPriceData(prev => ({ ...prev, error: '' }));
+            
             try {
-                const res = await getCurrentFuelPrice(fuelType);
+                const res = await getCurrentFuelPrice(fuelType, "Chennai", "Tamil Nadu");
                 if (res.data) {
-                    setFuelPrice(parseFloat(res.data.price_per_liter) || 100.00);
+                    setFuelPriceData({
+                        price: parseFloat(res.data.price_per_liter) || 0,
+                        city: res.data.city || 'Chennai',
+                        state: 'Tamil Nadu',
+                        effectiveDate: res.data.effective_from || '',
+                        source: res.data.source || '',
+                        isStale: !!res.data.is_stale,
+                        fetchedAt: res.data.fetched_at || '',
+                        error: ''
+                    });
                 }
             } catch (err) {
                 console.error("Error fetching fuel price:", err);
-                setFuelPrice(100.00);
+                setFuelPriceData(prev => ({ 
+                    ...prev, 
+                    price: 0,
+                    error: err.response?.data?.message || 'Current fuel price unavailable.' 
+                }));
             }
         };
         fetchPrice();
@@ -168,7 +194,7 @@ const Trips = () => {
         }
 
         const additionalRequired = Math.max(estimatedRequired - currentFuel, 0);
-        const estimatedCost = Math.round(additionalRequired * fuelPrice * 100) / 100;
+        const estimatedCost = Math.round(additionalRequired * fuelPriceData.price * 100) / 100;
 
         setFuelPanelData({
             efficiency,
@@ -178,7 +204,7 @@ const Trips = () => {
             estimatedCost,
             fuelType
         });
-    }, [form.vehicle_id, form.planned_distance, form.current_fuel_liters, fuelPrice, availableVehicles]);
+    }, [form.vehicle_id, form.planned_distance, form.current_fuel_liters, fuelPriceData.price, availableVehicles]);
 
     // Calculate route-based tolls — fires when we have valid coordinates OR non-empty addresses
     useEffect(() => {
@@ -436,16 +462,63 @@ const Trips = () => {
 
     const handleOpenCompleteModal = (trip) => {
         const v = vehicles.find(veh => veh.id === trip.vehicle_id);
+        const startOdo = parseFloat(trip.start_odometer || v?.odometer || 0);
+        const plannedDist = parseFloat(trip.planned_distance || 0);
+        const finalOdo = (startOdo + plannedDist).toFixed(1);
+        const autoRev = (trip.revenue && parseFloat(trip.revenue) > 0)
+            ? trip.revenue.toString()
+            : Math.round(plannedDist * 50).toString();
+
         setTripToComplete(trip);
         setCompleteForm({
-            actual_distance: trip.planned_distance || "",
-            final_odometer: v ? (parseFloat(v.odometer || 0) + parseFloat(trip.planned_distance || 0)).toString() : "",
-            actual_fuel_consumed: trip.estimated_fuel_liters || "",
-            revenue: trip.revenue || "",
-            toll_amount: trip.toll_amount || ""
+            actual_distance: plannedDist > 0 ? plannedDist.toString() : "",
+            final_odometer: finalOdo,
+            actual_fuel_consumed: trip.estimated_fuel_liters ? trip.estimated_fuel_liters.toString() : "",
+            revenue: autoRev,
+            toll_amount: trip.toll_amount ? trip.toll_amount.toString() : ""
         });
         setCompleteError("");
         setIsCompleteModalOpen(true);
+    };
+
+    const handleActualDistanceChange = (val) => {
+        if (!tripToComplete) return;
+        const v = vehicles.find(veh => veh.id === tripToComplete.vehicle_id);
+        const startOdo = parseFloat(tripToComplete.start_odometer || v?.odometer || 0);
+        const distNum = parseFloat(val);
+
+        if (!isNaN(distNum) && distNum >= 0) {
+            const syncedOdo = (startOdo + distNum).toFixed(1);
+            const syncedRev = Math.round(distNum * 50).toString();
+            setCompleteForm(prev => ({
+                ...prev,
+                actual_distance: val,
+                final_odometer: syncedOdo,
+                revenue: syncedRev
+            }));
+        } else {
+            setCompleteForm(prev => ({ ...prev, actual_distance: val }));
+        }
+    };
+
+    const handleFinalOdometerChange = (val) => {
+        if (!tripToComplete) return;
+        const v = vehicles.find(veh => veh.id === tripToComplete.vehicle_id);
+        const startOdo = parseFloat(tripToComplete.start_odometer || v?.odometer || 0);
+        const finalOdoNum = parseFloat(val);
+
+        if (!isNaN(finalOdoNum) && finalOdoNum >= startOdo) {
+            const syncedDist = (finalOdoNum - startOdo).toFixed(1);
+            const syncedRev = Math.round(parseFloat(syncedDist) * 50).toString();
+            setCompleteForm(prev => ({
+                ...prev,
+                final_odometer: val,
+                actual_distance: syncedDist,
+                revenue: syncedRev
+            }));
+        } else {
+            setCompleteForm(prev => ({ ...prev, final_odometer: val }));
+        }
     };
 
     const handleCompleteTrip = async (e) => {
@@ -747,9 +820,35 @@ const Trips = () => {
                                         </div>
                                         <div>
                                             <p className="text-muted">Fuel Price</p>
-                                            <p className="font-semibold text-secondary">₹{fuelPrice}/L</p>
+                                            <p className="font-semibold text-secondary">
+                                                {fuelPriceData.price > 0 ? `₹${fuelPriceData.price}/L` : '---'}
+                                            </p>
                                         </div>
                                     </div>
+
+                                    {fuelPriceData.error ? (
+                                        <div className="text-[11px] text-red-400 bg-red-500/10 px-3 py-2 rounded-lg border border-red-500/20">
+                                            ❌ {fuelPriceData.error}
+                                        </div>
+                                    ) : fuelPriceData.price > 0 ? (
+                                        <div className="text-[11px] bg-card/60 p-2.5 rounded-lg space-y-1 border border-border">
+                                            <div className="flex justify-between items-center">
+                                                <span className="font-semibold text-secondary">Current Fuel Price</span>
+                                                <span className="font-bold text-accent">₹{fuelPriceData.price}/L</span>
+                                            </div>
+                                            <div className="text-muted flex flex-col gap-0.5 mt-1">
+                                                <p>Location: {fuelPriceData.city}, {fuelPriceData.state}</p>
+                                                <p>Effective: {new Date(fuelPriceData.effectiveDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                                                <p>Source: {fuelPriceData.source}</p>
+                                                <p>Last Updated: {new Date(fuelPriceData.fetchedAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute:'2-digit' })}</p>
+                                            </div>
+                                            {fuelPriceData.isStale && (
+                                                <div className="text-amber-400 mt-1 font-medium flex items-center gap-1">
+                                                    <span>⚠️</span> Using last available fuel price (Status: Cached)
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : null}
 
                                     {fuelPanelData.efficiency === 0 && (
                                         <div className="text-[11px] text-amber-400 bg-amber-500/10 px-3 py-2 rounded-lg border border-amber-500/20">
@@ -848,6 +947,10 @@ const Trips = () => {
                                 draftDestination={draftDestination}
                                 sourceText={form.source}
                                 destinationText={form.destination}
+                                sourceLatitude={form.source_latitude}
+                                sourceLongitude={form.source_longitude}
+                                destLatitude={form.destination_latitude}
+                                destLongitude={form.destination_longitude}
                                 selectingMode={selectingMode}
                                 onSelectLocation={handleSelectLocation}
                                 onRouteCalculated={handleRouteCalculated}
@@ -958,14 +1061,14 @@ const Trips = () => {
                             label="Actual Distance (km)" 
                             type="number" 
                             value={completeForm.actual_distance} 
-                            onChange={(e) => setCompleteForm({ ...completeForm, actual_distance: e.target.value })} 
+                            onChange={(e) => handleActualDistanceChange(e.target.value)} 
                             required 
                         />
                         <Input 
                             label="Final Odometer Reading (km)" 
                             type="number" 
                             value={completeForm.final_odometer} 
-                            onChange={(e) => setCompleteForm({ ...completeForm, final_odometer: e.target.value })} 
+                            onChange={(e) => handleFinalOdometerChange(e.target.value)} 
                             required 
                         />
                         <Input 
@@ -975,13 +1078,18 @@ const Trips = () => {
                             onChange={(e) => setCompleteForm({ ...completeForm, actual_fuel_consumed: e.target.value })} 
                             required 
                         />
-                        <Input 
-                            label="Trip Revenue (₹)" 
-                            type="number" 
-                            value={completeForm.revenue} 
-                            onChange={(e) => setCompleteForm({ ...completeForm, revenue: e.target.value })} 
-                            placeholder="e.g. 15000"
-                        />
+                        <div>
+                            <Input 
+                                label="Trip Revenue (₹)" 
+                                type="number" 
+                                value={completeForm.revenue} 
+                                onChange={(e) => setCompleteForm({ ...completeForm, revenue: e.target.value })} 
+                                placeholder="Auto-calculated (₹50/km)"
+                            />
+                            <p className="text-[10px] text-accent font-medium mt-1 flex items-center gap-1">
+                                ⚡ Auto-calculated based on ₹50/km freight rate (editable)
+                            </p>
+                        </div>
                         <Input 
                             label="Total Toll Amount (₹)" 
                             type="number" 

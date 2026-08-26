@@ -50,16 +50,48 @@ const Fuel = () => {
 
     // Extracted / Editable OCR Form State
     const [ocrData, setOcrData] = useState({
-        fuelType: "Diesel",
-        volume: "45.6",
-        amount: "4560",
-        pricePerLitre: "100.00",
-        billDate: new Date().toISOString().split("T")[0],
-        billNumber: `FB-${Math.floor(10000 + Math.random() * 90000)}`,
+        fuelType: "",
+        volume: "",
+        amount: "",
+        pricePerLitre: "",
+        billDate: "",
+        billNumber: "",
         vehicleId: "",
         driverId: "",
-        tripId: ""
+        tripId: "",
+        receiptVehicleNumber: "",
+        paymentMode: "",
+        receiptImage: ""
     });
+
+    const [extractedFields, setExtractedFields] = useState({
+        fuelType: false,
+        volume: false,
+        amount: false,
+        pricePerLitre: false,
+        billDate: false,
+        billNumber: false,
+        vehicleNumber: false,
+        paymentMode: false
+    });
+
+    const renderConfidenceBadge = (fieldName) => {
+        if (viewMode === "upload") return null;
+        const isExtracted = extractedFields[fieldName];
+        if (isExtracted) {
+            return (
+                <span className="text-[10px] bg-emerald-500/10 text-emerald-500 font-bold px-1.5 py-0.5 rounded border border-emerald-500/20 ml-2 inline-flex items-center">
+                    ✓ Auto-extracted
+                </span>
+            );
+        } else {
+            return (
+                <span className="text-[10px] bg-amber-500/10 text-amber-500 font-bold px-1.5 py-0.5 rounded border border-amber-500/20 ml-2 inline-flex items-center animate-pulse">
+                    ⚠ Needs Review
+                </span>
+            );
+        }
+    };
 
     const [isManualPriceEdit, setIsManualPriceEdit] = useState(false);
     const [activeTab, setActiveTab] = useState("scanner"); // 'scanner' | 'history'
@@ -151,7 +183,7 @@ const Fuel = () => {
         if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
-    // Execute Simulated Scan
+    // Execute OCR Scan
     const handleStartScan = async () => {
         if (!selectedFile) return;
         if (!ocrData.vehicleId) {
@@ -171,17 +203,33 @@ const Fuel = () => {
 
             setOcrData(prev => ({
                 ...prev,
-                fuelType: selectedVeh?.fuel_type || extracted.fuelType || "Diesel",
+                fuelType: extracted.fuelType || selectedVeh?.fuel_type || "Diesel",
                 volume: String(extracted.volume),
                 amount: String(extracted.amount),
                 pricePerLitre: String(extracted.pricePerLitre),
                 billDate: extracted.billDate || prev.billDate,
-                billNumber: extracted.billNumber
+                billNumber: extracted.billNumber,
+                receiptVehicleNumber: extracted.receiptVehicleNumber,
+                paymentMode: extracted.paymentMode,
+                receiptImage: extracted.receiptImage
             }));
+
+            setExtractedFields({
+                fuelType: !!extracted.fuelType,
+                volume: !!extracted.volume,
+                amount: !!extracted.amount,
+                pricePerLitre: !!extracted.pricePerLitre,
+                billDate: !!extracted.billDate,
+                billNumber: !!extracted.billNumber,
+                vehicleNumber: !!extracted.receiptVehicleNumber,
+                paymentMode: !!extracted.paymentMode
+            });
+
             setIsManualPriceEdit(false);
             setViewMode("review");
         } catch (err) {
-            setUploadError("Simulated scanning failed. Please try again.");
+            console.error("Scanner failed:", err);
+            setUploadError(err.message || "Scanning failed. Please try again.");
         } finally {
             setIsScanning(false);
         }
@@ -226,7 +274,10 @@ const Fuel = () => {
             volume: ocrData.volume,
             amount: ocrData.amount,
             pricePerLitre: ocrData.pricePerLitre,
-            fileName: preview?.name || "fuel_bill.jpg"
+            fileName: preview?.name || "fuel_bill.jpg",
+            receiptVehicleNumber: ocrData.receiptVehicleNumber,
+            paymentMode: ocrData.paymentMode,
+            receiptImage: ocrData.receiptImage
         });
 
         addFuelBillRecord(newRecord);
@@ -236,15 +287,28 @@ const Fuel = () => {
     const handleResetScanner = () => {
         handleRemoveFile();
         setOcrData({
-            fuelType: "Diesel",
-            volume: "45.6",
-            amount: "4560",
-            pricePerLitre: "100.00",
-            billDate: new Date().toISOString().split("T")[0],
-            billNumber: `FB-${Math.floor(10000 + Math.random() * 90000)}`,
+            fuelType: "",
+            volume: "",
+            amount: "",
+            pricePerLitre: "",
+            billDate: "",
+            billNumber: "",
             vehicleId: "",
             driverId: "",
-            tripId: ""
+            tripId: "",
+            receiptVehicleNumber: "",
+            paymentMode: "",
+            receiptImage: ""
+        });
+        setExtractedFields({
+            fuelType: false,
+            volume: false,
+            amount: false,
+            pricePerLitre: false,
+            billDate: false,
+            billNumber: false,
+            vehicleNumber: false,
+            paymentMode: false
         });
         setViewMode("upload");
     };
@@ -257,6 +321,15 @@ const Fuel = () => {
     // Selected items for display
     const selectedVehObj = vehicles.find(v => String(v.id) === String(ocrData.vehicleId));
     const selectedTrpObj = trips.find(t => String(t.id) === String(ocrData.tripId));
+
+    const targetReg = selectedVehObj?.registration_no ? selectedVehObj.registration_no.replace(/[\s-]/g, '').toLowerCase() : "";
+    const receiptReg = ocrData.receiptVehicleNumber ? ocrData.receiptVehicleNumber.replace(/[\s-]/g, '').toLowerCase() : "";
+    const hasRegMismatch = !!(targetReg && receiptReg && targetReg !== receiptReg);
+
+    const volumeVal = parseFloat(ocrData.volume) || 0;
+    const priceVal = parseFloat(ocrData.pricePerLitre) || 0;
+    const amountVal = parseFloat(ocrData.amount) || 0;
+    const hasMathAnomaly = volumeVal > 0 && priceVal > 0 && amountVal > 0 && Math.abs((volumeVal * priceVal) - amountVal) > 1.0;
 
     // Processed Fuel History Logs
     const filteredHistoryRecords = fuelRecords.filter((rec) => {
@@ -569,6 +642,25 @@ const Fuel = () => {
                                             </span>
                                         </div>
 
+                                        {/* Warning banners */}
+                                        {hasRegMismatch && (
+                                            <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-600 dark:text-rose-400 text-xs flex items-center gap-2 font-medium">
+                                                <HiOutlineExclamationCircle className="w-5 h-5 flex-shrink-0" />
+                                                <div>
+                                                    <span className="font-bold">Vehicle Registration Mismatch:</span> Receipt mentions vehicle <span className="font-mono bg-rose-500/20 px-1 py-0.5 rounded font-bold">{ocrData.receiptVehicleNumber}</span>, but target vehicle is <span className="font-mono bg-rose-500/20 px-1 py-0.5 rounded font-bold">{selectedVehObj?.registration_no}</span>. Please verify.
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {hasMathAnomaly && (
+                                            <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-600 dark:text-amber-400 text-xs flex items-center gap-2 font-medium">
+                                                <HiOutlineExclamationCircle className="w-5 h-5 flex-shrink-0" />
+                                                <div>
+                                                    <span className="font-bold">Mathematical Anomaly:</span> Calculated amount (Volume {volumeVal} L * Rate ₹{priceVal}/L = ₹{(volumeVal * priceVal).toFixed(2)}) does not match the entered amount (₹{amountVal}). Please verify.
+                                                </div>
+                                            </div>
+                                        )}
+
                                         {/* Editable Inputs Grid */}
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             
@@ -587,7 +679,12 @@ const Fuel = () => {
                                             />
 
                                             <Select
-                                                label="Fuel Type"
+                                                label={
+                                                    <span className="flex items-center gap-1">
+                                                        Fuel Type
+                                                        {renderConfidenceBadge("fuelType")}
+                                                    </span>
+                                                }
                                                 value={ocrData.fuelType}
                                                 onChange={(e) => handleOcrChange("fuelType", e.target.value)}
                                                 options={[
@@ -600,7 +697,12 @@ const Fuel = () => {
                                             />
 
                                             <Input
-                                                label="Bill Date *"
+                                                label={
+                                                    <span className="flex items-center gap-1">
+                                                        Bill Date *
+                                                        {renderConfidenceBadge("billDate")}
+                                                    </span>
+                                                }
                                                 type="date"
                                                 value={ocrData.billDate}
                                                 onChange={(e) => handleOcrChange("billDate", e.target.value)}
@@ -608,9 +710,14 @@ const Fuel = () => {
                                             />
 
                                             <Input
-                                                label="Volume (Liters) *"
+                                                label={
+                                                    <span className="flex items-center gap-1">
+                                                        Volume (Liters) *
+                                                        {renderConfidenceBadge("volume")}
+                                                    </span>
+                                                }
                                                 type="number"
-                                                step="0.01"
+                                                step="0.001"
                                                 placeholder="e.g. 45.6"
                                                 value={ocrData.volume}
                                                 onChange={(e) => handleOcrChange("volume", e.target.value)}
@@ -618,7 +725,12 @@ const Fuel = () => {
                                             />
 
                                             <Input
-                                                label="Amount Spent (INR) *"
+                                                label={
+                                                    <span className="flex items-center gap-1">
+                                                        Amount Spent (INR) *
+                                                        {renderConfidenceBadge("amount")}
+                                                    </span>
+                                                }
                                                 type="number"
                                                 step="0.01"
                                                 placeholder="e.g. 4560"
@@ -628,7 +740,12 @@ const Fuel = () => {
                                             />
 
                                             <Input
-                                                label="Price per Litre (INR/L)"
+                                                label={
+                                                    <span className="flex items-center gap-1">
+                                                        Price per Litre (INR/L)
+                                                        {renderConfidenceBadge("pricePerLitre")}
+                                                    </span>
+                                                }
                                                 type="number"
                                                 step="0.01"
                                                 placeholder="Calculated automatically"
@@ -638,12 +755,49 @@ const Fuel = () => {
                                             />
 
                                             <Input
-                                                label="Bill / Invoice Number"
+                                                label={
+                                                    <span className="flex items-center gap-1">
+                                                        Bill / Invoice Number
+                                                        {renderConfidenceBadge("billNumber")}
+                                                    </span>
+                                                }
                                                 type="text"
                                                 placeholder="e.g. FB-10234"
                                                 value={ocrData.billNumber}
                                                 onChange={(e) => handleOcrChange("billNumber", e.target.value)}
                                                 required
+                                            />
+
+                                            <Input
+                                                label={
+                                                    <span className="flex items-center gap-1">
+                                                        Receipt Vehicle Number
+                                                        {renderConfidenceBadge("vehicleNumber")}
+                                                    </span>
+                                                }
+                                                type="text"
+                                                placeholder="e.g. GJ03ES5116"
+                                                value={ocrData.receiptVehicleNumber || ""}
+                                                onChange={(e) => handleOcrChange("receiptVehicleNumber", e.target.value)}
+                                            />
+
+                                            <Select
+                                                label={
+                                                    <span className="flex items-center gap-1">
+                                                        Payment Mode
+                                                        {renderConfidenceBadge("paymentMode")}
+                                                    </span>
+                                                }
+                                                value={ocrData.paymentMode || ""}
+                                                onChange={(e) => handleOcrChange("paymentMode", e.target.value)}
+                                                options={[
+                                                    { label: "Select Mode...", value: "" },
+                                                    { label: "Cash", value: "Cash" },
+                                                    { label: "Card", value: "Card" },
+                                                    { label: "UPI", value: "UPI" },
+                                                    { label: "FuelCard", value: "FuelCard" },
+                                                    { label: "NetBanking", value: "NetBanking" }
+                                                ]}
                                             />
                                         </div>
 
@@ -824,13 +978,14 @@ const Fuel = () => {
                                     <th className="px-6 py-4">Volume (L)</th>
                                     <th className="px-6 py-4">Amount Spent</th>
                                     <th className="px-6 py-4">Price / L</th>
+                                    <th className="px-6 py-4">Payment</th>
                                     <th className="px-6 py-4 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-border">
                                 {filteredHistoryRecords.length === 0 ? (
                                     <tr>
-                                        <td colSpan={10} className="px-6 py-12 text-center text-muted text-sm">
+                                        <td colSpan={11} className="px-6 py-12 text-center text-muted text-sm">
                                             No fuel bills found matching filters. <br />
                                             <button onClick={() => setActiveTab("scanner")} className="text-accent underline font-semibold mt-2">
                                                 Upload Fuel Bill Now
@@ -849,6 +1004,13 @@ const Fuel = () => {
                                             <td className="px-6 py-4 font-semibold text-primary">{rec.volume} L</td>
                                             <td className="px-6 py-4 font-bold text-accent">₹{Number(rec.amount).toLocaleString()}</td>
                                             <td className="px-6 py-4 text-secondary">₹{rec.price_per_litre}/L</td>
+                                            <td className="px-6 py-4 text-secondary">
+                                                {rec.payment_mode ? (
+                                                    <span className="text-[10px] bg-sidebar border border-border px-2 py-0.5 rounded font-semibold text-primary">
+                                                        {rec.payment_mode}
+                                                    </span>
+                                                ) : "—"}
+                                            </td>
                                             <td className="px-6 py-4 text-right">
                                                 <button
                                                     onClick={() => deleteFuelBillRecord(rec.id)}

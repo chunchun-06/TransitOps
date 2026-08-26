@@ -80,7 +80,7 @@ const MapClickHandler = ({ selectingMode, onSelectLocation }) => {
       let address = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
       try {
         const response = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`,
           {
             headers: {
               'Accept-Language': 'en',
@@ -90,9 +90,23 @@ const MapClickHandler = ({ selectingMode, onSelectLocation }) => {
         );
         if (response.ok) {
           const data = await response.json();
-          if (data && data.display_name) {
-            const parts = data.display_name.split(',');
-            address = parts.slice(0, 3).join(',').trim();
+          if (data) {
+            const addr = data.address || {};
+            const place = addr.amenity || addr.building || addr.road || addr.suburb || addr.neighbourhood || addr.village || addr.industrial || '';
+            const city = addr.city || addr.town || addr.municipality || addr.county || addr.state_district || '';
+            const state = addr.state || '';
+
+            const parts = [];
+            if (place) parts.push(place);
+            if (city && city !== place) parts.push(city);
+            if (state && state !== city) parts.push(state);
+
+            if (parts.length > 0) {
+              address = parts.join(', ');
+            } else if (data.display_name) {
+              const p = data.display_name.split(',');
+              address = p.slice(0, 2).concat(p.slice(-2)).join(', ').trim();
+            }
           }
         }
       } catch (err) {
@@ -197,6 +211,10 @@ const TripMap = ({
   draftDestination,
   sourceText,
   destinationText,
+  sourceLatitude,
+  sourceLongitude,
+  destLatitude,
+  destLongitude,
   onRouteCalculated,
   tolls = []
 }) => {
@@ -247,15 +265,19 @@ const TripMap = ({
     const resolveMapData = async () => {
       // 1. Resolve coordinates from props/state or fallback to trip coordinates
       let sRes = null;
-      if (draftSource?.lat != null) {
+      if (draftSource?.lat != null && !isNaN(parseFloat(draftSource.lat))) {
         sRes = { lat: parseFloat(draftSource.lat), lng: parseFloat(draftSource.lng) };
+      } else if (sourceLatitude != null && sourceLongitude != null && !isNaN(parseFloat(sourceLatitude)) && !isNaN(parseFloat(sourceLongitude))) {
+        sRes = { lat: parseFloat(sourceLatitude), lng: parseFloat(sourceLongitude) };
       } else if (trip?.source_latitude != null && trip?.source_longitude != null) {
         sRes = { lat: parseFloat(trip.source_latitude), lng: parseFloat(trip.source_longitude) };
       }
 
       let dRes = null;
-      if (draftDestination?.lat != null) {
+      if (draftDestination?.lat != null && !isNaN(parseFloat(draftDestination.lat))) {
         dRes = { lat: parseFloat(draftDestination.lat), lng: parseFloat(draftDestination.lng) };
+      } else if (destLatitude != null && destLongitude != null && !isNaN(parseFloat(destLatitude)) && !isNaN(parseFloat(destLongitude))) {
+        dRes = { lat: parseFloat(destLatitude), lng: parseFloat(destLongitude) };
       } else if (trip?.destination_latitude != null && trip?.destination_longitude != null) {
         dRes = { lat: parseFloat(trip.destination_latitude), lng: parseFloat(trip.destination_longitude) };
       }
@@ -335,6 +357,10 @@ const TripMap = ({
     draftSource?.lng, 
     draftDestination?.lat, 
     draftDestination?.lng, 
+    sourceLatitude,
+    sourceLongitude,
+    destLatitude,
+    destLongitude,
     trip?.source_latitude, 
     trip?.source_longitude, 
     trip?.destination_latitude, 

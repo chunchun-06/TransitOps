@@ -1,7 +1,7 @@
 import api from "./axios";
 
-export const getCurrentFuelPrice = (fuelType = "Diesel") => 
-    api.get(`/fuel-price/current?fuel_type=${fuelType}`);
+export const getCurrentFuelPrice = (fuelType = "Diesel", city = "Chennai", state = "Tamil Nadu") => 
+    api.get(`/fuel-price/current?fuel_type=${fuelType}&city=${city}&state=${state}`);
 
 export const getFuelPriceHistory = () => 
     api.get("/fuel-price/history");

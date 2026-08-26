@@ -5,7 +5,7 @@ const api = axios.create({
     headers: {
         "Content-Type": "application/json",
     },
-    timeout: 15000,
+    timeout: 120000, // 2 min — needed for Tesseract OCR scans
 });
 
 // ── Request interceptor ─────────────────────────────────────────────────────
@@ -14,6 +14,10 @@ api.interceptors.request.use(
         const token = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken");
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
+        }
+        // Let the browser set Content-Type (with boundary) for multipart uploads
+        if (config.data instanceof FormData) {
+            delete config.headers["Content-Type"];
         }
         return config;
     },

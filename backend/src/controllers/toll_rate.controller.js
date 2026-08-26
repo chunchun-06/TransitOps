@@ -44,7 +44,11 @@ function minDistanceToPolyline(plazaLat, plazaLng, polyline) {
     for (let i = 0; i < polyline.length - 1; i++) {
         const a = polyline[i];
         const b = polyline[i + 1];
-        const dx = b[1] - a[1];
+        
+        const avgLatRad = ((a[0] + b[0]) / 2) * Math.PI / 180;
+        const cosLat = Math.cos(avgLatRad);
+        
+        const dx = (b[1] - a[1]) * cosLat;
         const dy = b[0] - a[0];
         const lenSq = dx * dx + dy * dy;
 
@@ -52,10 +56,12 @@ function minDistanceToPolyline(plazaLat, plazaLng, polyline) {
         let projLng = a[1];
 
         if (lenSq > 0) {
-            let t = ((plazaLng - a[1]) * dx + (plazaLat - a[0]) * dy) / lenSq;
+            const px = (plazaLng - a[1]) * cosLat;
+            const py = plazaLat - a[0];
+            let t = (px * dx + py * dy) / lenSq;
             t = Math.max(0, Math.min(1, t));
-            projLat = a[0] + t * dy;
-            projLng = a[1] + t * dx;
+            projLat = a[0] + t * (b[0] - a[0]);
+            projLng = a[1] + t * (b[1] - a[1]);
         }
 
         const dist = haversineDistance(plazaLat, plazaLng, projLat, projLng);
@@ -269,6 +275,7 @@ exports.calculateTolls = async (req, res) => {
         );
 
         // ── 6. Geospatial intersection: filter plazas within corridor ─────
+        const TOLL_CORRIDOR_KM = 2.50; // 2.5 km buffer for highway polyline accuracy
         const detectedPlazas = [];
         for (const plaza of plazaRes.rows) {
             const pLat = parseFloat(plaza.latitude);
@@ -287,11 +294,15 @@ exports.calculateTolls = async (req, res) => {
 
         if (detectedPlazas.length === 0) {
             return res.json({
+                status:              'NO_TOLL_ON_ROUTE',
                 distanceKm:          Math.round(distanceKm * 10) / 10,
                 vehicleCategory:     category,
                 vehicleCategoryLabel: getCategoryLabel(category),
                 tolls_detected:      [],
+                tollPlazas:          [],
                 total_toll_amount:   0,
+                totalToll:           0,
+                currency:            'INR',
                 message:             'No toll plazas detected on this route. Total Toll: ₹0',
                 source_latitude:     latS,
                 source_longitude:    lngS,
@@ -305,6 +316,7 @@ exports.calculateTolls = async (req, res) => {
         // ── 7. Lookup effective toll rates ────────────────────────────────
         let totalToll = 0;
         const tollsList = [];
+        const tollPlazasFormatted = [];
         const errors   = [];
 
         for (const p of detectedPlazas) {
@@ -344,44 +356,54 @@ exports.calculateTolls = async (req, res) => {
                 const msg = `Data conflict: Multiple active toll rates found for ${category} at ${p.name}. Using the most recent.`;
                 console.error(`[Toll] ❌ ${msg}`, rateRes.rows.map(r => `₹${r.amount} (from ${r.effective_from})`));
                 errors.push(msg);
-                // Still proceed with the latest (first row due to ORDER BY DESC)
             }
 
             const row    = rateRes.rows[0];
             const amount = parseFloat(row.amount);
             totalToll += amount;
 
-            tollsList.push({
+            const item = {
                 id:                   p.id,
                 name:                 p.name,
                 highway:              p.highway,
                 state:                p.state,
                 latitude:             p.pLat,
                 longitude:            p.pLng,
+                location:             { lat: p.pLat, lng: p.pLng },
                 vehicleCategory:      category,
                 vehicleCategoryLabel: getCategoryLabel(category),
                 toll_amount:          amount,
+                amount:               amount,
+                currency:             'INR',
                 journey_type:         row.journey_type,
                 effective_from:       row.effective_from,
+                effectiveDate:        row.effective_from,
                 effective_until:      row.effective_until,
                 rateStatus:           'Available',
                 rateSource:           row.source || 'NHAI Official Tariff',
+                source:               row.source || 'NHAI Official Tariff',
                 distanceFromRoute:    Math.round(p.minKm * 1000)  // metres
-            });
+            };
+
+            tollsList.push(item);
+            tollPlazasFormatted.push(item);
         }
 
         const formattedTotal = Math.round(totalToll * 100) / 100;
         const hasUnavailable = tollsList.some(t => t.rateStatus === 'TOLL_RATE_UNAVAILABLE');
 
-        // If any plaza has a rate unavailable and no tolls at all were priced, return 400
         if (hasUnavailable && formattedTotal === 0) {
-            return res.status(400).json({
-                message: errors[0] || 'Toll rate unavailable for this vehicle category.',
+            return res.status(200).json({
+                status:              'DATA_UNAVAILABLE',
+                message:             errors[0] || 'Toll rate information unavailable for this vehicle category.',
                 errors,
                 vehicleCategory:     category,
                 vehicleCategoryLabel: getCategoryLabel(category),
                 tolls_detected:      tollsList,
-                total_toll_amount:   0,
+                tollPlazas:          tollPlazasFormatted,
+                total_toll_amount:   null,
+                totalToll:           null,
+                currency:            'INR',
                 trip_date:           resolvedDate
             });
         }
@@ -390,11 +412,15 @@ exports.calculateTolls = async (req, res) => {
         const summaryMsg = `${tollsList.length} Toll ${plazaWord} Detected (Total: ₹${formattedTotal})${errors.length ? ' — ⚠️ ' + errors[0] : ''}`;
 
         res.json({
+            status:                'FOUND',
             distanceKm:            Math.round(distanceKm * 10) / 10,
             vehicleCategory:       category,
             vehicleCategoryLabel:  getCategoryLabel(category),
             tolls_detected:        tollsList,
+            tollPlazas:            tollPlazasFormatted,
             total_toll_amount:     formattedTotal,
+            totalToll:             formattedTotal,
+            currency:              'INR',
             message:               summaryMsg,
             errors:                errors.length ? errors : undefined,
             source_latitude:       latS,
@@ -407,7 +433,10 @@ exports.calculateTolls = async (req, res) => {
 
     } catch (err) {
         console.error('[Toll] calculateTolls error:', err);
-        res.status(500).json({ message: 'Unable to calculate route tolls. Please try again.' });
+        res.status(500).json({
+            status:  'DATA_UNAVAILABLE',
+            message: 'Unable to calculate route tolls due to a server error.'
+        });
     }
 };
 

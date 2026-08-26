@@ -103,29 +103,6 @@ const Dashboard = () => {
     const activeTripsCount = dbData?.operational?.active_trips ?? activeTrips.length;
     const driversOnDutyCount = dbData?.operational?.on_trip_drivers ?? drivers.filter(d => d.status === "On Trip" || d.status === "Available").length;
     
-    // Dynamic Estimated Fuel & Cost calculation across all active dispatched trips
-    const totalEstimatedFuelLiters = activeTrips.reduce((acc, t) => {
-        if (t.estimated_fuel_liters && !isNaN(parseFloat(t.estimated_fuel_liters))) {
-            return acc + parseFloat(t.estimated_fuel_liters);
-        }
-        const dist = parseFloat(t.planned_distance) || 0;
-        const eff = parseFloat(t.fuel_efficiency_kmpl) || 6;
-        return acc + (eff > 0 ? (dist / eff) : 0);
-    }, 0);
-
-    const totalEstimatedFuelCost = activeTrips.reduce((acc, t) => {
-        if (t.estimated_fuel_cost && !isNaN(parseFloat(t.estimated_fuel_cost))) {
-            return acc + parseFloat(t.estimated_fuel_cost);
-        }
-        const dist = parseFloat(t.planned_distance) || 0;
-        const eff = parseFloat(t.fuel_efficiency_kmpl) || 6;
-        const reqFuel = eff > 0 ? (dist / eff) : 0;
-        const curFuel = parseFloat(t.current_fuel_liters) || 0;
-        const addFuel = Math.max(reqFuel - curFuel, 0);
-        const fp = parseFloat(t.fuel_price_per_liter) || 100;
-        return acc + (addFuel * fp);
-    }, 0);
-
     const totalVehiclesCount = dbData?.operational?.total_vehicles ?? vehicles.length;
     const vehicleStatusData = [
         { label: "Available", percentage: totalVehiclesCount > 0 ? Math.round(((dbData?.operational?.available_vehicles ?? vehicles.filter(v => v.status === 'Available').length) / totalVehiclesCount) * 100) : 0, bgClass: "bg-success" },
@@ -442,7 +419,7 @@ const Dashboard = () => {
                 <h3 className="text-xs font-bold uppercase tracking-wider text-secondary flex items-center gap-1">
                     <HiOutlineTruck className="w-4 h-4 text-accent" /> Fleet Operations Overview
                 </h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="bg-card border-l-4 border-l-[#3B82F6] border-y border-r border-border rounded-xl p-4 flex flex-col justify-between shadow-sm">
                         <span className="text-[10px] text-secondary uppercase tracking-wider font-semibold">Active Vehicles</span>
                         <span className="text-2xl font-bold mt-2">{activeVehiclesCount}</span>
@@ -458,14 +435,6 @@ const Dashboard = () => {
                     <div className="bg-card border-l-4 border-l-[#8B5CF6] border-y border-r border-border rounded-xl p-4 flex flex-col justify-between shadow-sm">
                         <span className="text-[10px] text-secondary uppercase tracking-wider font-semibold">Active Trips</span>
                         <span className="text-2xl font-bold mt-2">{activeTripsCount}</span>
-                    </div>
-                    <div className="bg-card border-l-4 border-l-[#C98A1C] border-y border-r border-border rounded-xl p-4 flex flex-col justify-between shadow-sm">
-                        <span className="text-[10px] text-secondary uppercase tracking-wider font-semibold">Est. Fuel Required</span>
-                        <span className="text-lg font-bold mt-2 truncate">{totalEstimatedFuelLiters > 0 ? `${(Math.round(totalEstimatedFuelLiters * 100) / 100).toLocaleString()} L` : "0.00 L"}</span>
-                    </div>
-                    <div className="bg-card border-l-4 border-l-[#C98A1C] border-y border-r border-border rounded-xl p-4 flex flex-col justify-between shadow-sm">
-                        <span className="text-[10px] text-secondary uppercase tracking-wider font-semibold">Est. Fuel Cost</span>
-                        <span className="text-lg font-bold mt-2 truncate">{totalEstimatedFuelCost > 0 ? `₹${Math.round(totalEstimatedFuelCost).toLocaleString()}` : "₹0"}</span>
                     </div>
                 </div>
             </div>

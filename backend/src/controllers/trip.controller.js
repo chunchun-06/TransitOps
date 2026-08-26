@@ -19,16 +19,21 @@ async function resolveUserId(req) {
     return r.rows.length > 0 ? r.rows[0].id : null;
 }
 
-// Helper: get current fuel price for a fuel type
+const FuelPriceService = require('../services/fuel_price.service');
+
+// Helper: get current fuel price for a fuel type — returns null on failure (non-blocking)
 async function getCurrentFuelPrice(fuelType = 'Diesel') {
-    const r = await pool.query(
-        `SELECT price_per_liter FROM fuel_price
-         WHERE fuel_type = $1 AND effective_from <= CURRENT_DATE
-         AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)
-         ORDER BY effective_from DESC LIMIT 1`,
-        [fuelType]
-    );
-    return r.rows.length > 0 ? parseFloat(r.rows[0].price_per_liter) : 100.0;
+    try {
+        const priceData = await FuelPriceService.getCurrentFuelPrice({ 
+            city: 'Chennai', 
+            state: 'Tamil Nadu', 
+            fuelType 
+        });
+        return priceData.pricePerLitre;
+    } catch (err) {
+        console.warn(`[TripController] FuelPriceService unavailable for ${fuelType}: ${err.message}. Proceeding without fuel cost estimate.`);
+        return null; // Non-blocking — trip creation continues
+    }
 }
 
 exports.getTrips = async (req, res) => {
@@ -172,18 +177,22 @@ exports.createTrip = async (req, res) => {
         let additionalFuel = null;
         let estimatedFuelCost = null;
         const fuelType = vehicle.fuel_type || 'Diesel';
-        const fuelPrice = await getCurrentFuelPrice(fuelType);
+        const fuelPrice = await getCurrentFuelPrice(fuelType); // returns null if unavailable
 
         if (efficiency && efficiency > 0) {
             estimatedFuel = Math.round((distKm / efficiency) * 100) / 100;
             additionalFuel = Math.max(estimatedFuel - curFuel, 0);
-            estimatedFuelCost = Math.round(additionalFuel * fuelPrice * 100) / 100;
+            // Only calculate cost if fuel price is available
+            if (fuelPrice !== null) {
+                estimatedFuelCost = Math.round(additionalFuel * fuelPrice * 100) / 100;
+            }
         }
 
         const startOdometer = vehicle.odometer ? parseFloat(vehicle.odometer) : 0;
         const toll = toll_amount ? parseFloat(toll_amount) : 0;
         const estFuelCost = estimatedFuelCost || 0;
         const totalTripCost = estFuelCost + toll;
+        const estimatedRevenue = Math.round(distKm * 50);
 
         // 4. Create trip
         const insertQuery = `
@@ -194,9 +203,9 @@ exports.createTrip = async (req, res) => {
                 estimated_fuel_liters, current_fuel_liters, additional_fuel_required_liters,
                 estimated_fuel_cost, fuel_price_per_liter,
                 status, created_by, start_time,
-                start_odometer, toll_amount, total_trip_cost
+                start_odometer, toll_amount, total_trip_cost, revenue
             )
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'Dispatched',$17,CURRENT_TIMESTAMP,$18,$19,$20)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'Dispatched',$17,CURRENT_TIMESTAMP,$18,$19,$20,$21)
             RETURNING *
         `;
         const result = await pool.query(insertQuery, [
@@ -217,7 +226,8 @@ exports.createTrip = async (req, res) => {
             createdBy,
             startOdometer,
             toll,
-            totalTripCost
+            totalTripCost,
+            estimatedRevenue
         ]);
 
         // 5. Update vehicle and driver status + vehicle fuel level
@@ -229,6 +239,17 @@ exports.createTrip = async (req, res) => {
             "UPDATE drivers SET status = 'On Trip', updated_at = CURRENT_TIMESTAMP WHERE id = $1",
             [driver_id]
         );
+
+        // Auto-create toll expense entry if trip has toll charges
+        if (toll > 0) {
+            const tripId = result.rows[0].id;
+            await pool.query(
+                `INSERT INTO expenses (vehicle_id, trip_id, category, description, amount, source_type, source_id, date, created_by)
+                 VALUES ($1, $2, 'TOLL', $3, $4, 'TOLL', $2, CURRENT_TIMESTAMP, $5)
+                 ON CONFLICT (source_type, source_id) DO UPDATE SET amount = EXCLUDED.amount`,
+                [vehicle_id, tripId, `Toll charges for TR-${String(tripId).substring(0, 5).toUpperCase()} (${source || ''} → ${destination || ''})`, toll, createdBy]
+            );
+        }
 
         await pool.query('COMMIT');
 
@@ -273,16 +294,35 @@ exports.updateTrip = async (req, res) => {
         const isEnding = status === 'Completed' || status === 'Cancelled';
         const endTimeClause = isEnding ? ', end_time = CURRENT_TIMESTAMP' : '';
 
-        // Fallbacks for completion metrics
-        const plannedDistance = currentTrip.rows[0].planned_distance || 0;
-        const finalActualDistance = (status === 'Completed')
-            ? (actual_distance !== undefined && actual_distance !== null && actual_distance !== '' ? parseFloat(actual_distance) : parseFloat(plannedDistance))
-            : (actual_distance !== undefined && actual_distance !== null ? parseFloat(actual_distance) : null);
-
+        // Fallbacks and synchronized calculations for completion metrics
+        const plannedDistance = parseFloat(currentTrip.rows[0].planned_distance || 0);
         const startOdoVal = currentTrip.rows[0].start_odometer ? parseFloat(currentTrip.rows[0].start_odometer) : 0;
-        const finalOdometerVal = (status === 'Completed')
-            ? (final_odometer !== undefined && final_odometer !== null && final_odometer !== '' ? parseFloat(final_odometer) : startOdoVal + finalActualDistance)
-            : (final_odometer !== undefined && final_odometer !== null ? parseFloat(final_odometer) : null);
+
+        let finalActualDistance = null;
+        let finalOdometerVal = null;
+
+        if (status === 'Completed') {
+            const reqFinalOdo = final_odometer !== undefined && final_odometer !== null && final_odometer !== '' ? parseFloat(final_odometer) : null;
+            const reqActualDist = actual_distance !== undefined && actual_distance !== null && actual_distance !== '' ? parseFloat(actual_distance) : null;
+
+            if (reqFinalOdo !== null && !isNaN(reqFinalOdo) && reqFinalOdo > startOdoVal) {
+                finalOdometerVal = Math.round(reqFinalOdo * 10) / 10;
+                finalActualDistance = Math.round((finalOdometerVal - startOdoVal) * 10) / 10;
+            } else if (reqActualDist !== null && !isNaN(reqActualDist) && reqActualDist > 0) {
+                finalActualDistance = Math.round(reqActualDist * 10) / 10;
+                finalOdometerVal = Math.round((startOdoVal + finalActualDistance) * 10) / 10;
+            } else {
+                finalActualDistance = Math.round(plannedDistance * 10) / 10;
+                finalOdometerVal = Math.round((startOdoVal + finalActualDistance) * 10) / 10;
+            }
+        } else {
+            finalActualDistance = actual_distance !== undefined && actual_distance !== null ? parseFloat(actual_distance) : null;
+            finalOdometerVal = final_odometer !== undefined && final_odometer !== null ? parseFloat(final_odometer) : null;
+        }
+
+        const finalRevenue = (revenue !== undefined && revenue !== null && revenue !== '' && parseFloat(revenue) > 0)
+            ? parseFloat(revenue)
+            : Math.round((finalActualDistance || plannedDistance) * 50);
 
         const actualFuelConsumed = actual_fuel_consumed ? parseFloat(actual_fuel_consumed) : (fuel_used ? parseFloat(fuel_used) : null);
         let actualFuelCost = null;
@@ -319,7 +359,7 @@ exports.updateTrip = async (req, res) => {
             finalActualDistance,
             finalOdometerVal,
             actualFuelConsumed,
-            revenue || null,
+            finalRevenue,
             actualFuelCost,
             finalTollAmount,
             totalTripCost,
@@ -343,11 +383,32 @@ exports.updateTrip = async (req, res) => {
             if (status === 'Completed' && actualFuelConsumed && actualFuelConsumed > 0) {
                 const createdBy = await resolveUserId(req);
                 const fp = fuelPriceUsed ? parseFloat(fuelPriceUsed) : null;
-                await pool.query(
+                const fuelInsert = await pool.query(
                     `INSERT INTO fuel (vehicle_id, trip_id, fuel_amount, cost, price_per_liter, fuel_type, date, created_by)
                      SELECT $1, $2, $3, $4, $5, v.fuel_type, CURRENT_TIMESTAMP, $6
-                     FROM vehicles v WHERE v.id = $1`,
+                     FROM vehicles v WHERE v.id = $1 RETURNING id`,
                     [vehicle_id, id, actualFuelConsumed, actualFuelCost, fp, createdBy]
+                );
+                
+                if (fuelInsert.rows.length > 0) {
+                    const fuelId = fuelInsert.rows[0].id;
+                    await pool.query(
+                        `INSERT INTO expenses (vehicle_id, trip_id, category, description, amount, source_type, source_id, date, created_by)
+                         VALUES ($1, $2, 'FUEL', 'Auto-generated fuel expense from Trip', $3, 'FUEL', $4, CURRENT_TIMESTAMP, $5)
+                         ON CONFLICT (source_type, source_id) DO UPDATE SET amount = EXCLUDED.amount`,
+                        [vehicle_id, id, actualFuelCost, fuelId, createdBy]
+                    );
+                }
+            }
+
+            // Auto-create toll expense
+            if (status === 'Completed' && finalTollAmount > 0) {
+                const createdBy = await resolveUserId(req);
+                await pool.query(
+                    `INSERT INTO expenses (vehicle_id, trip_id, category, description, amount, source_type, source_id, date, created_by)
+                     VALUES ($1, $2, 'TOLL', 'Trip Toll Charges', $3, 'TOLL', $4, CURRENT_TIMESTAMP, $5)
+                     ON CONFLICT (source_type, source_id) DO UPDATE SET amount = EXCLUDED.amount`,
+                    [vehicle_id, id, finalTollAmount, id, createdBy]
                 );
             }
         }
@@ -372,6 +433,8 @@ exports.deleteTrip = async (req, res) => {
                 await pool.query("UPDATE vehicles SET status = 'Available' WHERE id = $1", [vehicle_id]);
                 await pool.query("UPDATE drivers SET status = 'Available' WHERE id = $1", [driver_id]);
             }
+            await pool.query('DELETE FROM expenses WHERE trip_id = $1', [id]);
+            await pool.query('DELETE FROM fuel WHERE trip_id = $1', [id]);
             await pool.query('DELETE FROM trips WHERE id = $1', [id]);
         }
         await pool.query('COMMIT');

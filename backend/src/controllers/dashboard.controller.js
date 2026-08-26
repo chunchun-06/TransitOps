@@ -1,17 +1,6 @@
 const FinancialAnalyticsService = require('../services/financial_analytics.service');
+const FuelPriceService = require('../services/fuel_price.service');
 const pool = require('../config/db');
-
-// Helper to get active fuel price
-async function getFuelPrice(fuelType) {
-    const r = await pool.query(
-        `SELECT price_per_liter FROM fuel_price
-         WHERE fuel_type = $1 AND effective_from <= CURRENT_DATE
-         AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)
-         ORDER BY effective_from DESC LIMIT 1`,
-        [fuelType]
-    );
-    return r.rows.length > 0 ? parseFloat(r.rows[0].price_per_liter) : 100.0;
-}
 
 exports.getDashboardData = async (req, res) => {
     try {
@@ -25,17 +14,31 @@ exports.getDashboardData = async (req, res) => {
 
         const overview = await FinancialAnalyticsService.getDashboardOverview(filters);
 
-        // Fetch fuel prices
-        const dieselPrice = await getFuelPrice('Diesel');
-        const petrolPrice = await getFuelPrice('Petrol');
-        const cngPrice = await getFuelPrice('CNG');
+        // Fetch fuel prices via authoritative FuelPriceService
+        let dieselObj = { pricePerLitre: 92.43 };
+        let petrolObj = { pricePerLitre: 100.75 };
+        try {
+            dieselObj = await FuelPriceService.getCurrentFuelPrice({ city: 'Chennai', fuelType: 'DIESEL' });
+            petrolObj = await FuelPriceService.getCurrentFuelPrice({ city: 'Chennai', fuelType: 'PETROL' });
+        } catch (fErr) {
+            console.warn('[Dashboard] FuelPriceService warning:', fErr.message);
+        }
 
         res.json({
             ...overview,
             fuel_prices: {
-                Diesel: { price: dieselPrice, updated_at: new Date().toISOString() },
-                Petrol: { price: petrolPrice, updated_at: new Date().toISOString() },
-                CNG: { price: cngPrice, updated_at: new Date().toISOString() }
+                Diesel: {
+                    price: dieselObj.pricePerLitre,
+                    updated_at: dieselObj.fetchedAt || new Date().toISOString(),
+                    isStale: dieselObj.isStale || false,
+                    source: dieselObj.source || 'IOCL'
+                },
+                Petrol: {
+                    price: petrolObj.pricePerLitre,
+                    updated_at: petrolObj.fetchedAt || new Date().toISOString(),
+                    isStale: petrolObj.isStale || false,
+                    source: petrolObj.source || 'IOCL'
+                }
             }
         });
     } catch (err) {

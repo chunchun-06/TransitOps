@@ -202,6 +202,12 @@ CREATE TABLE fuel (
     fuel_amount DECIMAL(10,2),
     cost DECIMAL(12,2),
     date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    price_per_liter DECIMAL(8,2),
+    fuel_type VARCHAR(20) DEFAULT 'Diesel',
+    invoice_number VARCHAR(100),
+    receipt_vehicle_number VARCHAR(50),
+    payment_mode VARCHAR(50),
+    receipt_image TEXT,
     created_by UUID,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_fuel_trip
@@ -222,6 +228,8 @@ CREATE TABLE expenses (
     category VARCHAR(100),
     description TEXT,
     amount DECIMAL(12,2),
+    source_type VARCHAR(50),
+    source_id UUID,
     date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_by UUID,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -233,11 +241,29 @@ CREATE TABLE expenses (
         REFERENCES vehicles(id),
     CONSTRAINT fk_expense_user
         FOREIGN KEY(created_by)
-        REFERENCES users(id)
+        REFERENCES users(id),
+    CONSTRAINT unique_expense_source
+        UNIQUE (source_type, source_id)
 );
 
 CREATE INDEX idx_users_email
 ON users(email);
+
+CREATE TABLE fuel_prices (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    fuel_type VARCHAR(50) NOT NULL,
+    country VARCHAR(100) DEFAULT 'India',
+    state VARCHAR(100),
+    city VARCHAR(100),
+    price_per_litre DECIMAL(10,2) NOT NULL,
+    currency VARCHAR(10) DEFAULT 'INR',
+    effective_date DATE NOT NULL,
+    source VARCHAR(255),
+    fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+ALTER TABLE fuel_prices ADD CONSTRAINT unique_fuel_price_city_date UNIQUE (city, fuel_type, effective_date);
 
 CREATE INDEX idx_vehicle_registration
 ON vehicles(registration_no);
