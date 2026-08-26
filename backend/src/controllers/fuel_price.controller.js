@@ -44,9 +44,69 @@ exports.getPriceHistory = async (req, res) => {
 
 // Create new fuel price entry (Fleet Manager only)
 exports.createPrice = async (req, res) => {
-    return res.status(400).json({ message: 'Manual price creation is disabled. Prices are fetched automatically.' });
-};
+    const {
+        fuel_type,
+        price_per_liter,
+        effective_from
+    } = req.body;
 
+    try {
+        if (!fuel_type || !price_per_liter || !effective_from) {
+            return res.status(400).json({
+                message: "fuel_type, price_per_liter and effective_from are required"
+            });
+        }
+
+        const result = await pool.query(
+            `
+            INSERT INTO fuel_prices (
+                fuel_type,
+                country,
+                state,
+                city,
+                price_per_litre,
+                currency,
+                effective_date,
+                source,
+                fetched_at,
+                created_at,
+                updated_at
+            )
+            VALUES (
+                $1,
+                'India',
+                'Tamil Nadu',
+                'Chennai',
+                $2,
+                'INR',
+                $3,
+                'Manual',
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP
+            )
+            RETURNING *
+            `,
+            [
+                fuel_type,
+                price_per_liter,
+                effective_from
+            ]
+        );
+
+        return res.status(201).json({
+            message: "Fuel price published successfully",
+            data: result.rows[0]
+        });
+
+    } catch (err) {
+        console.error("Error creating fuel price:", err);
+
+        return res.status(500).json({
+            message: "Failed to create fuel price"
+        });
+    }
+};
 // Update fuel price entry
 exports.updatePrice = async (req, res) => {
     return res.status(400).json({ message: 'Manual price updates are disabled.' });
