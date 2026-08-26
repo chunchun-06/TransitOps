@@ -6,9 +6,11 @@ const authorize = require('../middlewares/role.middleware');
 
 router.use(authenticate);
 
-// Publicly available to authenticated users for estimation & viewing
+// Publicly available to authenticated users for estimation & calculation
 router.get('/', controller.getTollRates);
 router.get('/estimate', controller.getTollEstimate);
+router.post('/estimate', controller.calculateTolls);
+router.post('/calculate', controller.calculateTolls);
 
 // Protected actions for Admin and Fleet Manager
 router.post('/', authorize('Admin', 'Fleet Manager'), controller.createTollRate);
@@ -16,3 +18,4 @@ router.put('/:id', authorize('Admin', 'Fleet Manager'), controller.updateTollRat
 router.delete('/:id', authorize('Admin', 'Fleet Manager'), controller.deleteTollRate);
 
 module.exports = router;
+

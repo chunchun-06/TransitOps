@@ -99,6 +99,15 @@ export const simulateOCRScanning = async (file, onProgressUpdate) => {
         const y = dateMatchDMY[3];
         billDate = `${y}-${m}-${d}`;
         cleanedName = cleanedName.replace(dateMatchDMY[0], "");
+    } else if (file && file.lastModified) {
+        try {
+            const fileD = new Date(file.lastModified);
+            if (!isNaN(fileD.getTime())) {
+                billDate = fileD.toISOString().split("T")[0];
+            }
+        } catch (e) {
+            billDate = new Date().toISOString().split("T")[0];
+        }
     }
 
     // 3. Extract Bill Number if available (e.g. FB-12345, INV-2026-902, etc.)
@@ -205,11 +214,13 @@ export const buildFuelRecordPayload = ({
     const volNum = parseFloat(volume) || 0;
     const amtNum = parseFloat(amount) || 0;
     const calcPrice = volNum > 0 ? Math.round((amtNum / volNum) * 100) / 100 : (parseFloat(pricePerLitre) || 100);
+    let cleanDate = billDate || new Date().toISOString().split("T")[0];
+    if (cleanDate && cleanDate.includes("T")) cleanDate = cleanDate.split("T")[0];
 
     return {
         id: `fb-${Date.now()}`,
         bill_number: billNumber || `FB-${Math.floor(10000 + Math.random() * 90000)}`,
-        date: billDate || new Date().toISOString().split("T")[0],
+        date: cleanDate,
         vehicle_id: vehicleId || "",
         vehicle_reg: vehicleReg || "—",
         driver_id: driverId || "",

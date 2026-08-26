@@ -15,7 +15,7 @@ import { getTrips, createTrip, updateTrip } from "../../api/trip.api";
 import { getVehicles, getAvailableVehicles } from "../../api/vehicle.api";
 import { getDrivers, getAvailableDrivers } from "../../api/driver.api";
 import { getCurrentFuelPrice } from "../../api/fuel_price.api";
-import { getTollEstimate } from "../../api/toll_rate.api";
+import { getTollEstimate, calculateTolls } from "../../api/toll_rate.api";
 import { Input, Select, Button, Badge, Modal } from "../../components/common";
 import AddressAutocomplete from "../../components/common/AddressAutocomplete";
 import TripMap from "../../components/trip/TripMap";
@@ -180,40 +180,114 @@ const Trips = () => {
         });
     }, [form.vehicle_id, form.planned_distance, form.current_fuel_liters, fuelPrice, availableVehicles]);
 
-    // Fetch toll estimate when source, destination, vehicle, or distance changes
+    // Calculate route-based tolls — fires when we have valid coordinates OR non-empty addresses
     useEffect(() => {
+        const srcLat = parseFloat(form.source_latitude);
+        const srcLng = parseFloat(form.source_longitude);
+        const dstLat = parseFloat(form.destination_latitude);
+        const dstLng = parseFloat(form.destination_longitude);
+
+        const hasSourceCoords = !isNaN(srcLat) && !isNaN(srcLng) && srcLat !== 0 && srcLng !== 0;
+        const hasDestCoords   = !isNaN(dstLat) && !isNaN(dstLng) && dstLat !== 0 && dstLng !== 0;
+
+        // Clear tolls if source or destination text was cleared
+        if (!form.source || !form.destination) {
+            setTollsDetected([]);
+            setTollEstimateMsg("");
+            return;
+        }
+
+        const hasSourceText = form.source.trim().length >= 3;
+        const hasDestText   = form.destination.trim().length >= 3;
+
+        // Trigger calculation if coordinates are valid, OR if we have text-based fallback search input
+        if (!((hasSourceCoords && hasDestCoords) || (hasSourceText && hasDestText))) {
+            return;
+        }
+
+        const veh = availableVehicles.find(v => v?.id != null && String(v.id) === String(form.vehicle_id));
+
         const fetchTolls = async () => {
-            if (!form.source || !form.destination) {
-                setTollsDetected([]);
-                setTollEstimateMsg("");
-                return;
-            }
-            const veh = availableVehicles.find(v => v?.id != null && String(v.id) === String(form.vehicle_id));
-            const vClass = veh?.vehicle_type || 'Truck';
             try {
-                const res = await getTollEstimate({
+                console.log('[Toll] Calculating for:', form.source, '→', form.destination, 
+                    '| Coords:', hasSourceCoords ? `${srcLat}, ${srcLng}` : 'None (Backend Fallback)', 
+                    '→', hasDestCoords ? `${dstLat}, ${dstLng}` : 'None (Backend Fallback)',
+                    '| Vehicle:', form.vehicle_id, '| Category:', veh?.toll_category || veh?.vehicle_type);
+
+                const res = await calculateTolls({
                     source: form.source,
                     destination: form.destination,
-                    vehicle_class: vClass,
-                    planned_distance: form.planned_distance || undefined
+                    source_latitude: hasSourceCoords ? srcLat : undefined,
+                    source_longitude: hasSourceCoords ? srcLng : undefined,
+                    destination_latitude: hasDestCoords ? dstLat : undefined,
+                    destination_longitude: hasDestCoords ? dstLng : undefined,
+                    vehicle_id: form.vehicle_id || undefined,
+                    vehicle_class: veh?.vehicle_type || 'Truck',
+                    axle_count: veh?.axle_count || 2,
+                    trip_date: new Date().toISOString().split('T')[0]   // YYYY-MM-DD for effective-date tariff lookup
                 });
+
                 if (res.data) {
+                    console.log('[Toll] Result:', res.data.message, '| Total: ₹' + res.data.total_toll_amount);
                     setTollsDetected(res.data.tolls_detected || []);
-                    setForm(prev => ({
-                        ...prev,
-                        toll_amount: res.data.total_toll_amount !== undefined ? res.data.total_toll_amount.toString() : prev.toll_amount
-                    }));
+                    
+                    setForm(prev => {
+                        const updates = {};
+                        if (res.data.total_toll_amount !== undefined) {
+                            updates.toll_amount = res.data.total_toll_amount.toString();
+                        }
+                        if (res.data.source_latitude && !prev.source_latitude) {
+                            updates.source_latitude = res.data.source_latitude.toString();
+                            updates.source_longitude = res.data.source_longitude.toString();
+                        }
+                        if (res.data.destination_latitude && !prev.destination_latitude) {
+                            updates.destination_latitude = res.data.destination_latitude.toString();
+                            updates.destination_longitude = res.data.destination_longitude.toString();
+                        }
+                        if (res.data.distanceKm && !prev.planned_distance) {
+                            updates.planned_distance = res.data.distanceKm.toString();
+                        }
+                        return Object.keys(updates).length > 0 ? { ...prev, ...updates } : prev;
+                    });
+
+                    if (res.data.source_latitude && !draftSource) {
+                        setDraftSource({
+                            lat: parseFloat(res.data.source_latitude),
+                            lng: parseFloat(res.data.source_longitude),
+                            address: form.source
+                        });
+                    }
+                    if (res.data.destination_latitude && !draftDestination) {
+                        setDraftDestination({
+                            lat: parseFloat(res.data.destination_latitude),
+                            lng: parseFloat(res.data.destination_longitude),
+                            address: form.destination
+                        });
+                    }
+
                     setTollEstimateMsg(res.data.message || "");
                 }
             } catch (err) {
-                console.error("Error fetching toll estimate:", err);
+                console.error("[Toll] Calculation error:", err?.response?.data || err.message);
                 setTollsDetected([]);
-                setTollEstimateMsg("Toll detected — exact rate unavailable.");
+                setTollEstimateMsg(
+                    err?.response?.data?.message || "Toll information temporarily unavailable."
+                );
             }
         };
-        const timer = setTimeout(fetchTolls, 600);
+
+        const timer = setTimeout(fetchTolls, 400);
         return () => clearTimeout(timer);
-    }, [form.source, form.destination, form.vehicle_id, form.planned_distance, availableVehicles]);
+    }, [
+        form.source,
+        form.destination,
+        form.source_latitude,
+        form.source_longitude,
+        form.destination_latitude,
+        form.destination_longitude,
+        form.vehicle_id,
+        availableVehicles
+    ]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -233,7 +307,7 @@ const Trips = () => {
                 current_fuel_liters: selectedVeh?.current_fuel_level_liters !== undefined ? selectedVeh.current_fuel_level_liters.toString() : prev.current_fuel_liters
             }));
         } else {
-            setForm({ ...form, [name]: value });
+            setForm(prev => ({ ...prev, [name]: value }));
         }
     };
 
@@ -611,23 +685,34 @@ const Trips = () => {
                                 <div className="bg-sidebar p-3.5 rounded-xl border border-amber-500/30 space-y-2.5">
                                     <div className="flex items-center justify-between border-b border-border pb-2">
                                         <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                                            <span>🛑</span> Route Toll Gates ({tollsDetected.length})
+                                            <span>🚧</span> Toll Plazas Detected ({tollsDetected.length})
                                         </span>
                                         <span className="text-xs font-bold text-emerald-400">
-                                            Total: ₹{form.toll_amount || 0}
+                                            Total Toll: ₹{form.toll_amount || 0}
                                         </span>
                                     </div>
-                                    <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                                    <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
                                         {tollsDetected.map((t, idx) => (
                                             t && (
-                                                <div key={t.id || idx} className="flex items-center justify-between text-xs bg-card/60 p-2 rounded-lg border border-border/60">
+                                                <div key={t.id || idx} className="flex items-center justify-between text-xs bg-card/70 p-2.5 rounded-lg border border-border/80 shadow-xs">
                                                     <div className="truncate pr-2">
-                                                        <p className="font-semibold text-primary truncate">{t.toll_name || `Toll Plaza #${idx + 1}`}</p>
-                                                        <p className="text-[10px] text-muted">{t.highway || "Highway"} • {t.location || "Route Corridor"}</p>
+                                                        <p className="font-bold text-primary truncate">{idx + 1}. {t.name || t.toll_name || `Toll Plaza #${idx + 1}`}</p>
+                                                        <p className="text-[10px] text-muted">{t.highway || "Highway"} • {t.state || "Route Corridor"}</p>
+                                                        <p className="text-[10px] text-accent font-medium mt-0.5">
+                                                            Category: {t.vehicleCategoryLabel || t.vehicleCategory || "Truck – 2 Axle"}
+                                                        </p>
                                                     </div>
-                                                    <span className="font-bold text-emerald-400 shrink-0 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                                                        ₹{parseFloat(t.toll_amount || 0).toFixed(2)}
-                                                    </span>
+                                                    <div className="text-right shrink-0">
+                                                        {t.toll_amount !== null && t.toll_amount !== undefined ? (
+                                                            <span className="font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20 text-xs">
+                                                                ₹{parseFloat(t.toll_amount).toFixed(2)}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 text-[10px]">
+                                                                Rate Unavailable
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             )
                                         ))}

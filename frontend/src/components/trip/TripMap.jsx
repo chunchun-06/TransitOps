@@ -211,28 +211,31 @@ const TripMap = ({
   const activeSourceStr = draftSource?.address || sourceText || trip?.source || "";
   const activeDestStr = draftDestination?.address || destinationText || trip?.destination || "";
 
-  // Calculate toll positions along the route — every toll MUST get a position
+  // Calculate toll positions along the route — prioritize exact DB coordinates
   const tollPositions = tolls.map((t, idx) => {
     let pos = null;
-    const fraction = (idx + 1) / (tolls.length + 1);
+    const pLat = parseFloat(t.latitude || t.lat);
+    const pLng = parseFloat(t.longitude || t.lng);
 
-    if (routeCoords.length >= 2) {
-      // Interpolate along actual route polyline
+    if (!isNaN(pLat) && !isNaN(pLng) && pLat !== 0 && pLng !== 0) {
+      pos = [pLat, pLng];
+    } else if (routeCoords.length >= 2) {
+      const fraction = (idx + 1) / (tolls.length + 1);
       const coordIdx = Math.min(
         Math.floor(fraction * (routeCoords.length - 1)),
         routeCoords.length - 1
       );
       pos = routeCoords[coordIdx];
     } else if (isValidLatLng(startPos) && isValidLatLng(destPos)) {
-      // Fallback: linear interpolation between start and destination
+      const fraction = (idx + 1) / (tolls.length + 1);
       const lat = startPos[0] + fraction * (destPos[0] - startPos[0]);
       const lng = startPos[1] + fraction * (destPos[1] - startPos[1]);
       pos = [lat, lng];
     } else if (isValidLatLng(startPos)) {
-      // Only source known — cluster near source
+      const fraction = (idx + 1) / (tolls.length + 1);
       pos = [startPos[0] + fraction * 0.05, startPos[1] + fraction * 0.05];
     } else if (isValidLatLng(destPos)) {
-      // Only destination known — cluster near destination
+      const fraction = (idx + 1) / (tolls.length + 1);
       pos = [destPos[0] - fraction * 0.05, destPos[1] - fraction * 0.05];
     }
     return { ...t, pos };
@@ -462,13 +465,19 @@ const TripMap = ({
               t && isValidLatLng(t.pos) && (
                 <Marker key={t.id || idx} position={t.pos} icon={tollMarkerIcon}>
                   <Popup>
-                    <div className="text-xs font-sans min-w-[170px]">
+                    <div className="text-xs font-sans min-w-[190px]">
                       <strong className="text-amber-600 block mb-1">🛑 Toll Plaza #{idx + 1}</strong>
-                      <p className="font-bold text-gray-900 leading-tight">{t.toll_name || "Toll Gate"}</p>
-                      <p className="text-gray-600 text-[11px] mt-0.5">{t.highway || "Highway"} • {t.location || "Corridor"}</p>
-                      <div className="mt-2 pt-1.5 border-t border-gray-200 flex justify-between font-bold text-emerald-700 text-xs">
-                        <span>Fee ({t.vehicle_class || "Vehicle"}):</span>
-                        <span>₹{parseFloat(t.toll_amount || 0).toFixed(2)}</span>
+                      <p className="font-bold text-gray-900 leading-tight">{t.name || t.toll_name || "Toll Gate"}</p>
+                      <p className="text-gray-600 text-[11px] mt-0.5">{t.highway || "Highway"} • {t.state || "State Corridor"}</p>
+                      <div className="mt-2 pt-1.5 border-t border-gray-200 space-y-1">
+                        <div className="flex justify-between text-[11px] text-gray-600">
+                          <span>Category:</span>
+                          <span className="font-medium text-gray-800">{t.vehicleCategoryLabel || t.vehicleCategory || t.vehicle_class || "Truck – 2 Axle"}</span>
+                        </div>
+                        <div className="flex justify-between font-bold text-emerald-700 text-xs pt-0.5">
+                          <span>Toll Fee:</span>
+                          <span>{t.toll_amount != null ? `₹${parseFloat(t.toll_amount).toFixed(2)}` : 'Rate Unavailable'}</span>
+                        </div>
                       </div>
                     </div>
                   </Popup>

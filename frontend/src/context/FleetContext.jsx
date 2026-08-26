@@ -4,6 +4,21 @@ import { getVehicles } from "../api/vehicle.api";
 import { getDrivers } from "../api/driver.api";
 import { getFuelLogs, createFuelLog, deleteFuelLog } from "../api/fuel.api";
 
+const safeFormatDate = (val) => {
+    if (!val) return new Date().toISOString().split("T")[0];
+    if (typeof val === "string") {
+        return val.includes("T") ? val.split("T")[0] : val;
+    }
+    if (val instanceof Date) {
+        return val.toISOString().split("T")[0];
+    }
+    try {
+        return new Date(val).toISOString().split("T")[0];
+    } catch {
+        return new Date().toISOString().split("T")[0];
+    }
+};
+
 const FleetContext = createContext(null);
 
 export const FleetProvider = ({ children }) => {
@@ -70,9 +85,9 @@ export const FleetProvider = ({ children }) => {
                 setFuelRecords(backendLogs.map(log => {
                     const matchedVehicle = vehiclesRes.data?.find(v => v.id === log.vehicle_id);
                     const matchedTrip = tripsRes.data?.find(t => t.id === log.trip_id);
-                    const matchedDriver = matchedTrip 
-                        ? driversRes.data?.find(d => d.id === matchedTrip.driver_id) 
-                        : (log.driver_id ? driversRes.data?.find(d => d.id === log.driver_id) : null);
+                    const matchedDriver = log.driver_name
+                        ? { id: log.driver_id, name: log.driver_name }
+                        : (matchedTrip ? driversRes.data?.find(d => d.id === matchedTrip.driver_id) : (log.driver_id ? driversRes.data?.find(d => d.id === log.driver_id) : null));
                     
                     const vehicleDisplay = matchedVehicle 
                         ? `${matchedVehicle.registration_no} (${matchedVehicle.vehicle_name})`
@@ -81,7 +96,7 @@ export const FleetProvider = ({ children }) => {
                     return {
                         id: log.id,
                         bill_number: log.bill_number || `FB-${String(log.id).substring(0, 8).toUpperCase()}`,
-                        date: log.date ? log.date.split("T")[0] : new Date().toISOString().split("T")[0],
+                        date: safeFormatDate(log.date),
                         vehicle_id: log.vehicle_id,
                         vehicle_reg: vehicleDisplay,
                         driver_id: matchedDriver ? matchedDriver.id : "",
@@ -153,23 +168,40 @@ export const FleetProvider = ({ children }) => {
             const newRecord = {
                 id: created.id,
                 bill_number: record.bill_number || `FB-${String(created.id).substring(0, 8).toUpperCase()}`,
-                date: created.date ? created.date.split("T")[0] : (record.date || new Date().toISOString().split("T")[0]),
-                vehicle_id: created.vehicle_id,
+                date: safeFormatDate(created.date || record.date),
+                vehicle_id: created.vehicle_id || record.vehicle_id,
                 vehicle_reg: record.vehicle_reg,
                 driver_id: record.driver_id,
                 driver_name: record.driver_name,
-                trip_id: created.trip_id,
+                trip_id: created.trip_id || record.trip_id,
                 trip_code: record.trip_code,
-                fuel_type: created.fuel_type || "Diesel",
-                volume: parseFloat(created.fuel_amount || 0),
-                amount: parseFloat(created.cost || 0),
+                fuel_type: created.fuel_type || record.fuel_type || "Diesel",
+                volume: parseFloat(created.fuel_amount || record.volume || 0),
+                amount: parseFloat(created.cost || record.amount || 0),
                 price_per_litre: created.price_per_liter ? parseFloat(created.price_per_liter) : (parseFloat(record.price_per_litre) || 100),
                 bill_file_name: record.bill_file_name || "receipt.pdf"
             };
 
             setFuelRecords(prev => [newRecord, ...prev]);
+
+            // Update vehicle fuel level in local state immediately
+            if (created.vehicle_id || record.vehicle_id) {
+                const targetVehId = created.vehicle_id || record.vehicle_id;
+                const addedVol = parseFloat(created.fuel_amount || record.volume || 0);
+                setVehicles(prev => prev.map(v => {
+                    if (v.id === targetVehId) {
+                        const current = parseFloat(v.current_fuel_level_liters || 0);
+                        const cap = parseFloat(v.fuel_tank_capacity_liters || 99999);
+                        return {
+                            ...v,
+                            current_fuel_level_liters: Math.min(current + addedVol, cap)
+                        };
+                    }
+                    return v;
+                }));
+            }
             
-            // Re-fetch all data to synchronize vehicles (current fuel level) and trips
+            // Re-fetch all data to synchronize vehicles and trips
             fetchFleetData();
         } catch (err) {
             console.error("Error creating fuel log on backend:", err);
