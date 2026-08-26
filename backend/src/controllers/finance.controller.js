@@ -145,32 +145,32 @@ exports.deleteMaintenanceLog = async (req, res) => {
 exports.getFuelLogs = async (req, res) => {
     try {
         const query = `
-            SELECT 
-                f.id, 
-                f.trip_id, 
-                f.vehicle_id, 
-                f.fuel_amount, 
-                f.cost, 
-                f.price_per_liter, 
-                f.fuel_type, 
-                f.date, 
-                f.invoice_number,
-                f.receipt_vehicle_number,
-                f.payment_mode,
-                f.receipt_image,
-                v.registration_no, 
-                v.vehicle_name,
-                t.source AS trip_source,
-                t.destination AS trip_destination,
-                t.planned_distance AS trip_planned_distance,
-                COALESCE(d.name, d_veh.name) AS driver_name
-            FROM fuel f
-            LEFT JOIN vehicles v ON f.vehicle_id = v.id
-            LEFT JOIN trips t ON f.trip_id = t.id
-            LEFT JOIN drivers d ON t.driver_id = d.id
-            LEFT JOIN drivers d_veh ON v.assigned_driver_id = d_veh.id
-            ORDER BY f.date DESC
-        `;
+    SELECT 
+        f.id, 
+        f.trip_id, 
+        f.vehicle_id, 
+        f.fuel_amount, 
+        f.cost, 
+        f.price_per_liter, 
+        f.fuel_type, 
+        f.date, 
+        f.invoice_number,
+        f.receipt_vehicle_number,
+        f.payment_mode,
+        f.receipt_image,
+        v.registration_no, 
+        v.vehicle_name,
+        t.source AS trip_source,
+        t.destination AS trip_destination,
+        t.planned_distance AS trip_planned_distance,
+        COALESCE(d.name, d_veh.name) AS driver_name
+    FROM fuel f
+    LEFT JOIN vehicles v ON f.vehicle_id = v.id
+    LEFT JOIN trips t ON f.trip_id = t.id
+    LEFT JOIN drivers d ON t.driver_id = d.id
+    LEFT JOIN drivers d_veh ON v.current_driver_id = d_veh.id
+    ORDER BY f.date DESC
+`;
         const result = await pool.query(query);
         res.json(result.rows);
     } catch (err) {
