@@ -9,9 +9,11 @@ import {
     HiOutlineCurrencyRupee as RupeeIcon,
     HiOutlineClipboardList as ClipboardIcon,
     HiOutlineChevronRight as ChevronRight,
-    HiOutlineExclamationCircle
+    HiOutlineExclamationCircle,
+    HiOutlineDocumentText,
+    HiOutlineEye
 } from "react-icons/hi";
-import { getTrips, createTrip, updateTrip } from "../../api/trip.api";
+import { getTrips, createTrip, updateTrip, getTripFuelBills } from "../../api/trip.api";
 import { getVehicles, getAvailableVehicles } from "../../api/vehicle.api";
 import { getDrivers, getAvailableDrivers } from "../../api/driver.api";
 import { getCurrentFuelPrice } from "../../api/fuel_price.api";
@@ -20,6 +22,12 @@ import { Input, Select, Button, Badge, Modal } from "../../components/common";
 import AddressAutocomplete from "../../components/common/AddressAutocomplete";
 import TripMap from "../../components/trip/TripMap";
 import { useFleet } from "../../context/FleetContext";
+import { 
+    getFuelVarianceStatus, 
+    calcEstimatedKmpl, 
+    calcActualKmpl, 
+    calcFuelCostPerKm 
+} from "../../utils/fuelVariance";
 
 const initialForm = {
     source: "",
@@ -99,6 +107,27 @@ const Trips = () => {
     const [tollsDetected, setTollsDetected] = useState([]);
     const [tollEstimateMsg, setTollEstimateMsg] = useState("");
     const [completeLoading, setCompleteLoading] = useState(false);
+
+    // Linked Fuel Bills Modal State
+    const [isBillsModalOpen, setIsBillsModalOpen] = useState(false);
+    const [billsModalTrip, setBillsModalTrip] = useState(null);
+    const [linkedBillsList, setLinkedBillsList] = useState([]);
+    const [loadingBills, setLoadingBills] = useState(false);
+
+    const handleViewTripFuelBills = async (trip) => {
+        setBillsModalTrip(trip);
+        setIsBillsModalOpen(true);
+        setLoadingBills(true);
+        try {
+            const res = await getTripFuelBills(trip.id);
+            setLinkedBillsList(res.data || []);
+        } catch (err) {
+            console.error("Failed to load trip fuel bills:", err);
+            setLinkedBillsList([]);
+        } finally {
+            setLoadingBills(false);
+        }
+    };
 
     const fetchData = async () => {
         try {
@@ -469,11 +498,15 @@ const Trips = () => {
             ? trip.revenue.toString()
             : Math.round(plannedDist * 50).toString();
 
+        const actFuelVal = trip.actual_fuel_liters && parseFloat(trip.actual_fuel_liters) > 0
+            ? trip.actual_fuel_liters.toString()
+            : (trip.estimated_fuel_liters ? trip.estimated_fuel_liters.toString() : "");
+
         setTripToComplete(trip);
         setCompleteForm({
             actual_distance: plannedDist > 0 ? plannedDist.toString() : "",
             final_odometer: finalOdo,
-            actual_fuel_consumed: trip.estimated_fuel_liters ? trip.estimated_fuel_liters.toString() : "",
+            actual_fuel_consumed: actFuelVal,
             revenue: autoRev,
             toll_amount: trip.toll_amount ? trip.toll_amount.toString() : ""
         });
@@ -594,7 +627,8 @@ const Trips = () => {
         }))
     ];
 
-    const activeTrip = trips.find(t => t.id === selectedTripId) || (trips.length > 0 ? trips[0] : null);
+    const selectedTrip = trips.find(t => t.id === selectedTripId) || (trips.length > 0 ? trips[0] : null);
+    const activeTrip = selectedTrip;
     const activeVehicle = activeTrip ? vehicles.find(v => v.id === activeTrip.vehicle_id) : null;
     const activeDriver = activeTrip ? drivers.find(d => d.id === activeTrip.driver_id) : null;
 
@@ -961,6 +995,97 @@ const Trips = () => {
                         </div>
                     </div>
 
+                    {/* Selected Trip Fuel Performance Banner / Card */}
+                    {selectedTrip && (
+                        <div className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-4">
+                            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+                                <div className="flex items-center gap-2.5">
+                                    <BeakerIcon className="w-5 h-5 text-accent" />
+                                    <div>
+                                        <h4 className="text-xs font-bold text-secondary uppercase tracking-wider">
+                                            TR-{String(selectedTrip.id).substring(0, 6).toUpperCase()} — Fuel Performance & Variance Analysis
+                                        </h4>
+                                        <span className="text-[11px] text-muted block mt-0.5">
+                                            {selectedTrip.source} → {selectedTrip.destination} ({selectedTrip.planned_distance} KM) | Vehicle: <strong>{selectedTrip.registration_no || "Unassigned"}</strong>
+                                        </span>
+                                    </div>
+                                </div>
+                                {(() => {
+                                    const varInfo = getFuelVarianceStatus(selectedTrip.estimated_fuel_liters, selectedTrip.actual_fuel_liters);
+                                    return (
+                                        <span className={`text-xs font-bold px-3 py-1 rounded-full border ${varInfo.badgeClass}`}>
+                                            {varInfo.label}
+                                        </span>
+                                    );
+                                })()}
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 text-xs">
+                                <div className="bg-sidebar p-3 rounded-xl border border-border">
+                                    <span className="text-muted block text-[10px] uppercase tracking-wider font-bold">Estimated Fuel</span>
+                                    <span className="text-base font-bold text-amber-400">{selectedTrip.estimated_fuel_liters || "—"} L</span>
+                                    <span className="text-[10px] text-muted block mt-0.5">
+                                        Est. Cost: ₹{selectedTrip.estimated_fuel_cost ? Number(selectedTrip.estimated_fuel_cost).toLocaleString() : "—"}
+                                    </span>
+                                </div>
+
+                                <div className="bg-sidebar p-3 rounded-xl border border-border">
+                                    <span className="text-muted block text-[10px] uppercase tracking-wider font-bold">Actual Fuel Consumed</span>
+                                    <span className="text-base font-bold text-sky-400">
+                                        {selectedTrip.actual_fuel_liters && parseFloat(selectedTrip.actual_fuel_liters) > 0 
+                                            ? `${selectedTrip.actual_fuel_liters} L` 
+                                            : "Awaiting logs"}
+                                    </span>
+                                    <span className="text-[10px] text-muted block mt-0.5">
+                                        {selectedTrip.actual_fuel_cost && parseFloat(selectedTrip.actual_fuel_cost) > 0 
+                                            ? `Actual Spent: ₹${Number(selectedTrip.actual_fuel_cost).toLocaleString()}` 
+                                            : "Awaiting receipts"}
+                                    </span>
+                                </div>
+
+                                <div className="bg-sidebar p-3 rounded-xl border border-border">
+                                    <span className="text-muted block text-[10px] uppercase tracking-wider font-bold">Fuel Variance</span>
+                                    {(() => {
+                                        const varInfo = getFuelVarianceStatus(selectedTrip.estimated_fuel_liters, selectedTrip.actual_fuel_liters);
+                                        if (varInfo.status === "PENDING") {
+                                            return <span className="text-base font-bold text-muted">—</span>;
+                                        }
+                                        return (
+                                            <span className={`text-base font-bold ${varInfo.varianceLiters > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                                {varInfo.varianceLiters > 0 ? '+' : ''}{varInfo.varianceLiters} L ({varInfo.variancePct > 0 ? '+' : ''}{varInfo.variancePct}%)
+                                            </span>
+                                        );
+                                    })()}
+                                    <span className="text-[10px] text-muted block mt-0.5">Actual - Estimated</span>
+                                </div>
+
+                                <div className="bg-sidebar p-3 rounded-xl border border-border">
+                                    <span className="text-muted block text-[10px] uppercase tracking-wider font-bold">Actual Efficiency</span>
+                                    <span className="text-base font-bold text-emerald-400">
+                                        {calcActualKmpl(selectedTrip.actual_distance, selectedTrip.planned_distance, selectedTrip.actual_fuel_liters)} KM/L
+                                    </span>
+                                    <span className="text-[10px] text-muted block mt-0.5">
+                                        Est: {calcEstimatedKmpl(selectedTrip.planned_distance, selectedTrip.estimated_fuel_liters)} KM/L | ₹{calcFuelCostPerKm(selectedTrip.actual_fuel_cost, selectedTrip.estimated_fuel_cost, selectedTrip.actual_distance, selectedTrip.planned_distance)}/KM
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-1 text-xs border-t border-border/50">
+                                <span className="text-secondary font-medium">
+                                    Fuel Bills Linked: <strong className="text-primary">{selectedTrip.fuel_bills_count || 0} receipt(s)</strong>
+                                </span>
+                                {selectedTrip.fuel_bills_count > 0 && (
+                                    <button
+                                        onClick={() => handleViewTripFuelBills(selectedTrip)}
+                                        className="text-accent hover:underline font-bold text-xs flex items-center gap-1.5"
+                                    >
+                                        <HiOutlineDocumentText className="w-4 h-4" /> View Linked Receipts ({selectedTrip.fuel_bills_count})
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Trips Live Table Board */}
                     <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm flex flex-col">
                         <div className="p-4 border-b border-border bg-sidebar flex items-center justify-between">
@@ -991,6 +1116,8 @@ const Trips = () => {
                                         <th className="py-3 px-4">Route</th>
                                         <th className="py-3 px-4">Distance</th>
                                         <th className="py-3 px-4">Est. Fuel</th>
+                                        <th className="py-3 px-4">Actual Fuel</th>
+                                        <th className="py-3 px-4">Variance Status</th>
                                         <th className="py-3 px-4">Status</th>
                                         <th className="py-3 px-4 text-right">Actions</th>
                                     </tr>
@@ -998,34 +1125,54 @@ const Trips = () => {
                                 <tbody className="divide-y divide-border text-sm">
                                     {trips
                                         .filter(t => statusFilter === "All" || t.status === statusFilter)
-                                        .map(t => (
-                                            <tr 
-                                                key={t.id} 
-                                                onClick={() => setSelectedTripId(t.id)}
-                                                className={`hover:bg-primary/[0.02] cursor-pointer transition-colors ${selectedTripId === t.id ? 'bg-accent/5 font-medium' : ''}`}
-                                            >
-                                                <td className="py-3 px-4 font-mono text-accent text-xs font-bold">TR-{String(t.id).substring(0, 6).toUpperCase()}</td>
-                                                <td className="py-3 px-4 text-secondary font-medium">{t.registration_no || "—"}</td>
-                                                <td className="py-3 px-4 text-secondary">{t.driver_name || "—"}</td>
-                                                <td className="py-3 px-4 text-secondary text-xs">{t.source} → {t.destination}</td>
-                                                <td className="py-3 px-4 text-secondary">{t.planned_distance} km</td>
-                                                <td className="py-3 px-4 text-amber-400 font-medium">{t.estimated_fuel_liters || "—"} L</td>
-                                                <td className="py-3 px-4"><Badge status={t.status}>{t.status}</Badge></td>
-                                                <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                                                    {t.status === "Dispatched" && (
-                                                        <Button 
-                                                            variant="secondary" 
-                                                            className="text-xs py-1 px-2.5 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
-                                                            onClick={() => handleOpenCompleteModal(t)}
-                                                        >
-                                                            Complete Trip
-                                                        </Button>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        ))}
+                                        .map(t => {
+                                            const varInfo = getFuelVarianceStatus(t.estimated_fuel_liters, t.actual_fuel_liters);
+                                            return (
+                                                <tr 
+                                                    key={t.id} 
+                                                    onClick={() => setSelectedTripId(t.id)}
+                                                    className={`hover:bg-primary/[0.02] cursor-pointer transition-colors ${selectedTripId === t.id ? 'bg-accent/5 font-medium' : ''}`}
+                                                >
+                                                    <td className="py-3 px-4 font-mono text-accent text-xs font-bold">TR-{String(t.id).substring(0, 6).toUpperCase()}</td>
+                                                    <td className="py-3 px-4 text-secondary font-medium">{t.registration_no || "—"}</td>
+                                                    <td className="py-3 px-4 text-secondary">{t.driver_name || "—"}</td>
+                                                    <td className="py-3 px-4 text-secondary text-xs">{t.source} → {t.destination}</td>
+                                                    <td className="py-3 px-4 text-secondary">{t.planned_distance} km</td>
+                                                    <td className="py-3 px-4 text-amber-400 font-medium">{t.estimated_fuel_liters || "—"} L</td>
+                                                    <td className="py-3 px-4 text-sky-400 font-medium">
+                                                        {t.actual_fuel_liters && parseFloat(t.actual_fuel_liters) > 0 ? `${t.actual_fuel_liters} L` : "—"}
+                                                    </td>
+                                                    <td className="py-3 px-4">
+                                                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded border ${varInfo.badgeClass}`}>
+                                                            {varInfo.label}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3 px-4"><Badge status={t.status}>{t.status}</Badge></td>
+                                                    <td className="py-3 px-4 text-right flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                                                        {t.fuel_bills_count > 0 && (
+                                                            <button
+                                                                onClick={() => handleViewTripFuelBills(t)}
+                                                                title="View Linked Fuel Receipts"
+                                                                className="p-1.5 rounded-lg border border-border bg-sidebar hover:bg-card text-accent text-xs flex items-center gap-1 font-medium"
+                                                            >
+                                                                <HiOutlineEye className="w-3.5 h-3.5" /> Receipts ({t.fuel_bills_count})
+                                                            </button>
+                                                        )}
+                                                        {t.status === "Dispatched" && (
+                                                            <Button 
+                                                                variant="secondary" 
+                                                                className="text-xs py-1 px-2.5 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
+                                                                onClick={() => handleOpenCompleteModal(t)}
+                                                            >
+                                                                Complete Trip
+                                                            </Button>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     {trips.length === 0 && (
-                                        <tr><td colSpan={8} className="py-8 text-center text-muted text-xs">No trips found in dispatch board.</td></tr>
+                                        <tr><td colSpan={10} className="py-8 text-center text-muted text-xs">No trips found in dispatch board.</td></tr>
                                     )}
                                 </tbody>
                             </table>
@@ -1099,6 +1246,68 @@ const Trips = () => {
                         />
                     </div>
                 </form>
+            </Modal>
+
+            {/* LINKED RECEIPTS MODAL */}
+            <Modal
+                isOpen={isBillsModalOpen}
+                onClose={() => setIsBillsModalOpen(false)}
+                title={`Fuel Receipts Linked to TR-${billsModalTrip ? String(billsModalTrip.id).substring(0, 6).toUpperCase() : ""}`}
+            >
+                <div className="space-y-4 text-xs">
+                    {billsModalTrip && (
+                        <div className="bg-sidebar p-3 rounded-xl border border-border flex items-center justify-between">
+                            <div>
+                                <span className="font-bold text-secondary text-sm">{billsModalTrip.source} → {billsModalTrip.destination}</span>
+                                <p className="text-muted text-[11px] mt-0.5">
+                                    Vehicle: <strong>{billsModalTrip.registration_no}</strong> | Driver: <strong>{billsModalTrip.driver_name}</strong>
+                                </p>
+                            </div>
+                            <div className="text-right">
+                                <span className="text-muted block text-[10px] uppercase font-bold">Total Actual Fuel</span>
+                                <span className="font-bold text-sky-400 text-sm">{billsModalTrip.actual_fuel_liters || 0} L</span>
+                                <span className="text-emerald-400 font-bold block text-[11px]">₹{billsModalTrip.actual_fuel_cost ? Number(billsModalTrip.actual_fuel_cost).toLocaleString() : 0}</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {loadingBills ? (
+                        <div className="py-8 text-center text-muted">Loading associated fuel receipts...</div>
+                    ) : linkedBillsList.length === 0 ? (
+                        <div className="py-8 text-center text-muted">No fuel receipts uploaded for this trip yet.</div>
+                    ) : (
+                        <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
+                            {linkedBillsList.map(bill => (
+                                <div key={bill.id} className="p-3 bg-sidebar/70 rounded-xl border border-border flex items-center justify-between hover:border-accent/30 transition-colors">
+                                    <div className="space-y-1">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-mono text-accent font-bold">INV-{bill.invoice_number || String(bill.id).substring(0, 6).toUpperCase()}</span>
+                                            <span className="text-[10px] px-2 py-0.5 rounded bg-card border border-border text-muted">
+                                                {new Date(bill.date).toLocaleDateString()}
+                                            </span>
+                                            {bill.payment_mode && (
+                                                <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
+                                                    {bill.payment_mode}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <p className="text-secondary text-[11px]">
+                                            Fuel Type: <strong>{bill.fuel_type || "Diesel"}</strong> | Price/L: <strong>₹{bill.price_per_liter || "—"}</strong>
+                                        </p>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="font-bold text-primary text-sm block">{bill.fuel_amount} L</span>
+                                        <span className="font-bold text-emerald-400 text-xs">₹{Number(bill.cost).toLocaleString()}</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    <div className="pt-2 flex justify-end">
+                        <Button variant="secondary" onClick={() => setIsBillsModalOpen(false)}>Close</Button>
+                    </div>
+                </div>
             </Modal>
 
         </div>

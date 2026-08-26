@@ -160,12 +160,15 @@ exports.getFuelLogs = async (req, res) => {
                 f.receipt_image,
                 v.registration_no, 
                 v.vehicle_name,
-                t.driver_id,
-                d.name AS driver_name
+                t.source AS trip_source,
+                t.destination AS trip_destination,
+                t.planned_distance AS trip_planned_distance,
+                COALESCE(d.name, d_veh.name) AS driver_name
             FROM fuel f
             LEFT JOIN vehicles v ON f.vehicle_id = v.id
             LEFT JOIN trips t ON f.trip_id = t.id
             LEFT JOIN drivers d ON t.driver_id = d.id
+            LEFT JOIN drivers d_veh ON v.assigned_driver_id = d_veh.id
             ORDER BY f.date DESC
         `;
         const result = await pool.query(query);
@@ -545,6 +548,22 @@ exports.createFuelLog = async (req, res) => {
             );
         }
 
+        // Synchronize trip's total fuel used and actual fuel cost if associated with a trip
+        if (trip_id) {
+            const fuelAgg = await pool.query(
+                `SELECT SUM(fuel_amount) as total_vol, SUM(cost) as total_cost FROM fuel WHERE trip_id = $1`,
+                [trip_id]
+            );
+            if (fuelAgg.rows.length > 0) {
+                const totVol = parseFloat(fuelAgg.rows[0].total_vol || 0);
+                const totCost = parseFloat(fuelAgg.rows[0].total_cost || 0);
+                await pool.query(
+                    `UPDATE trips SET fuel_used = $1, actual_fuel_cost = $2 WHERE id = $3`,
+                    [totVol, totCost, trip_id]
+                );
+            }
+        }
+
         res.status(201).json(result.rows[0]);
     } catch (err) {
         console.error(err);
@@ -555,8 +574,25 @@ exports.createFuelLog = async (req, res) => {
 exports.deleteFuelLog = async (req, res) => {
     try {
         await pool.query('BEGIN');
+        const logRes = await pool.query("SELECT trip_id FROM fuel WHERE id = $1 FOR UPDATE", [req.params.id]);
+        const tripIdToSync = logRes.rows[0]?.trip_id;
+
         await pool.query("DELETE FROM expenses WHERE source_type = 'FUEL' AND source_id = $1", [req.params.id]);
         await pool.query("DELETE FROM fuel WHERE id = $1", [req.params.id]);
+
+        if (tripIdToSync) {
+            const fuelAgg = await pool.query(
+                `SELECT SUM(fuel_amount) as total_vol, SUM(cost) as total_cost FROM fuel WHERE trip_id = $1`,
+                [tripIdToSync]
+            );
+            const totVol = parseFloat(fuelAgg.rows[0]?.total_vol || 0);
+            const totCost = parseFloat(fuelAgg.rows[0]?.total_cost || 0);
+            await pool.query(
+                `UPDATE trips SET fuel_used = $1, actual_fuel_cost = $2 WHERE id = $3`,
+                [totVol, totCost, tripIdToSync]
+            );
+        }
+
         await pool.query('COMMIT');
         res.json({ message: 'Deleted' });
     } catch (err) {

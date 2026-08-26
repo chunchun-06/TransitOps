@@ -14,7 +14,8 @@ import {
     HiOutlineMap,
     HiOutlineExclamationCircle,
     HiOutlinePencilAlt,
-    HiOutlineSearch
+    HiOutlineSearch,
+    HiOutlineChartBar
 } from "react-icons/hi";
 import { useFleet } from "../../context/FleetContext";
 import { 
@@ -24,6 +25,8 @@ import {
     buildFuelRecordPayload 
 } from "../../utils/fuelService";
 import { Button, Input, Select } from "../../components/common";
+import { getFuelAnalytics } from "../../api/fuel.api";
+import { getFuelVarianceStatus } from "../../utils/fuelVariance";
 
 const Fuel = () => {
     const fleet = useFleet();
@@ -94,7 +97,37 @@ const Fuel = () => {
     };
 
     const [isManualPriceEdit, setIsManualPriceEdit] = useState(false);
-    const [activeTab, setActiveTab] = useState("scanner"); // 'scanner' | 'history'
+    const [activeTab, setActiveTab] = useState("scanner"); // 'scanner' | 'history' | 'analytics'
+
+    // Analytics State
+    const [analyticsRange, setAnalyticsRange] = useState("all_time");
+    const [analyticsCustomStart, setAnalyticsCustomStart] = useState("");
+    const [analyticsCustomEnd, setAnalyticsCustomEnd] = useState("");
+    const [analyticsData, setAnalyticsData] = useState(null);
+    const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+
+    const fetchAnalytics = async () => {
+        setLoadingAnalytics(true);
+        try {
+            const params = { range: analyticsRange };
+            if (analyticsRange === "custom" && analyticsCustomStart && analyticsCustomEnd) {
+                params.startDate = analyticsCustomStart;
+                params.endDate = analyticsCustomEnd;
+            }
+            const res = await getFuelAnalytics(params);
+            setAnalyticsData(res.data);
+        } catch (err) {
+            console.error("Failed to fetch fuel analytics:", err);
+        } finally {
+            setLoadingAnalytics(false);
+        }
+    };
+
+    useEffect(() => {
+        if (activeTab === "analytics") {
+            fetchAnalytics();
+        }
+    }, [activeTab, analyticsRange, analyticsCustomStart, analyticsCustomEnd]);
 
     // Automatically recalculate Price per Litre when Volume or Amount changes
     useEffect(() => {
@@ -368,6 +401,12 @@ const Fuel = () => {
                         className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === "history" ? "bg-accent text-card shadow" : "text-secondary hover:text-primary"}`}
                     >
                         Fuel Log History ({fuelRecords.length})
+                    </button>
+                    <button
+                        onClick={() => setActiveTab("analytics")}
+                        className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === "analytics" ? "bg-accent text-card shadow" : "text-secondary hover:text-primary"}`}
+                    >
+                        <HiOutlineChartBar className="w-4 h-4" /> Fuel Analytics
                     </button>
                 </div>
             </div>
@@ -999,7 +1038,18 @@ const Fuel = () => {
                                             <td className="px-6 py-4 font-mono font-bold text-primary">{rec.bill_number}</td>
                                             <td className="px-6 py-4 font-semibold text-primary">{rec.vehicle_reg}</td>
                                             <td className="px-6 py-4 text-secondary">{rec.driver_name || "—"}</td>
-                                            <td className="px-6 py-4 text-secondary font-mono">{rec.trip_code || "—"}</td>
+                                            <td className="px-6 py-4 text-secondary font-mono">
+                                                {rec.trip_id ? (
+                                                    <div>
+                                                        <span className="font-mono font-bold text-accent">TR-{String(rec.trip_id).substring(0, 6).toUpperCase()}</span>
+                                                        {rec.trip_source && (
+                                                            <span className="text-[10px] text-muted block">{rec.trip_source} → {rec.trip_destination}</span>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-[10px] bg-slate-500/10 text-muted px-2 py-0.5 rounded border border-slate-500/20 font-medium">Unassigned</span>
+                                                )}
+                                            </td>
                                             <td className="px-6 py-4 text-secondary">{rec.fuel_type}</td>
                                             <td className="px-6 py-4 font-semibold text-primary">{rec.volume} L</td>
                                             <td className="px-6 py-4 font-bold text-accent">₹{Number(rec.amount).toLocaleString()}</td>
@@ -1026,6 +1076,167 @@ const Fuel = () => {
                             </tbody>
                         </table>
                     </div>
+                </div>
+            )}
+
+            {/* TAB 3: FUEL PERFORMANCE ANALYTICS */}
+            {activeTab === "analytics" && (
+                <div className="space-y-6">
+                    {/* Date Filter Header */}
+                    <div className="bg-card border border-border rounded-2xl p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div>
+                            <h2 className="text-sm font-bold text-secondary uppercase tracking-widest flex items-center gap-2">
+                                <HiOutlineChartBar className="w-5 h-5 text-accent" /> Fleet Fuel Performance Analytics
+                            </h2>
+                            <p className="text-xs text-muted mt-0.5">Real-time comparison of estimated vs actual fuel consumption and cost metrics</p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3">
+                            <Select
+                                value={analyticsRange}
+                                onChange={(e) => setAnalyticsRange(e.target.value)}
+                                options={[
+                                    { label: "All Time", value: "all_time" },
+                                    { label: "Today", value: "today" },
+                                    { label: "This Week", value: "this_week" },
+                                    { label: "This Month", value: "this_month" },
+                                    { label: "Last Month", value: "last_month" },
+                                    { label: "Custom Range", value: "custom" }
+                                ]}
+                                className="text-xs w-[160px]"
+                            />
+                            {analyticsRange === "custom" && (
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="date"
+                                        value={analyticsCustomStart}
+                                        onChange={(e) => setAnalyticsCustomStart(e.target.value)}
+                                        className="form-input text-xs border rounded-xl px-2 py-1.5 outline-none"
+                                    />
+                                    <span className="text-muted text-xs">to</span>
+                                    <input
+                                        type="date"
+                                        value={analyticsCustomEnd}
+                                        onChange={(e) => setAnalyticsCustomEnd(e.target.value)}
+                                        className="form-input text-xs border rounded-xl px-2 py-1.5 outline-none"
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {loadingAnalytics ? (
+                        <div className="py-16 text-center text-muted text-xs">Calculating fleet fuel analytics...</div>
+                    ) : !analyticsData ? (
+                        <div className="py-16 text-center text-muted text-xs">No analytics data found for selected period.</div>
+                    ) : (
+                        <>
+                            {/* Fleet Analytics Summary Cards */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
+                                    <span className="text-muted text-[10px] font-bold uppercase tracking-wider block mb-1">Total Fuel Consumed</span>
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="text-xl font-extrabold text-sky-400">{analyticsData.summary.total_actual_fuel_liters} L</span>
+                                        <span className="text-xs text-muted">est: {analyticsData.summary.total_estimated_fuel_liters} L</span>
+                                    </div>
+                                    <div className="mt-2 text-[11px] font-semibold flex items-center gap-1.5">
+                                        <span className={`px-2 py-0.5 rounded border ${analyticsData.summary.fuel_variance_liters > 0 ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'}`}>
+                                            {analyticsData.summary.fuel_variance_liters > 0 ? '+' : ''}{analyticsData.summary.fuel_variance_liters} L ({analyticsData.summary.fuel_variance_percentage}%)
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
+                                    <span className="text-muted text-[10px] font-bold uppercase tracking-wider block mb-1">Total Fuel Expense</span>
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="text-xl font-extrabold text-accent">₹{Number(analyticsData.summary.total_actual_cost).toLocaleString()}</span>
+                                        <span className="text-xs text-muted">est: ₹{Number(analyticsData.summary.total_estimated_cost).toLocaleString()}</span>
+                                    </div>
+                                    <div className="mt-2 text-[11px] font-semibold flex items-center gap-1.5">
+                                        <span className={`px-2 py-0.5 rounded border ${analyticsData.summary.cost_variance_amount > 0 ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'}`}>
+                                            {analyticsData.summary.cost_variance_amount > 0 ? '+' : ''}₹{Number(analyticsData.summary.cost_variance_amount).toLocaleString()} ({analyticsData.summary.cost_variance_percentage}%)
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
+                                    <span className="text-muted text-[10px] font-bold uppercase tracking-wider block mb-1">Fleet Actual Efficiency</span>
+                                    <span className="text-xl font-extrabold text-emerald-400">{analyticsData.summary.fleet_actual_kmpl} KM/L</span>
+                                    <span className="text-muted text-[11px] block mt-1">Est target: {analyticsData.summary.fleet_estimated_kmpl} KM/L</span>
+                                </div>
+
+                                <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
+                                    <span className="text-muted text-[10px] font-bold uppercase tracking-wider block mb-1">Avg Fuel Cost per KM</span>
+                                    <span className="text-xl font-extrabold text-primary">₹{analyticsData.summary.avg_cost_per_km} / KM</span>
+                                    <span className="text-muted text-[11px] block mt-1">Across {analyticsData.summary.total_distance_km} KM total</span>
+                                </div>
+                            </div>
+
+                            {/* Vehicle-Wise Performance Table */}
+                            <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm p-6 space-y-4">
+                                <div>
+                                    <h3 className="text-xs font-bold text-secondary uppercase tracking-wider">Vehicle-Wise Fuel Performance</h3>
+                                    <p className="text-xs text-muted mt-0.5">Breakdown of estimated vs actual fuel metrics per vehicle</p>
+                                </div>
+
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse whitespace-nowrap">
+                                        <thead>
+                                            <tr className="border-b border-border bg-sidebar text-muted text-[11px] font-bold uppercase tracking-wider">
+                                                <th className="px-5 py-3">Vehicle</th>
+                                                <th className="px-5 py-3">Fuel Type</th>
+                                                <th className="px-5 py-3">Rated (KM/L)</th>
+                                                <th className="px-5 py-3">Est. Fuel</th>
+                                                <th className="px-5 py-3">Actual Fuel</th>
+                                                <th className="px-5 py-3">Fuel Variance</th>
+                                                <th className="px-5 py-3">Est. Cost</th>
+                                                <th className="px-5 py-3">Actual Cost</th>
+                                                <th className="px-5 py-3">Actual KM/L</th>
+                                                <th className="px-5 py-3">Cost / KM</th>
+                                                <th className="px-5 py-3">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-border text-xs">
+                                            {analyticsData.vehicles.map(v => {
+                                                const varStatus = getFuelVarianceStatus(v.estimated_fuel, v.actual_fuel);
+                                                return (
+                                                    <tr key={v.vehicle_id} className="hover:bg-primary/[0.02] transition-colors">
+                                                        <td className="px-5 py-3.5">
+                                                            <strong className="text-primary block font-semibold">{v.registration_no}</strong>
+                                                            <span className="text-[10px] text-muted">{v.vehicle_name}</span>
+                                                        </td>
+                                                        <td className="px-5 py-3.5 text-secondary">{v.fuel_type}</td>
+                                                        <td className="px-5 py-3.5 text-secondary font-mono">{v.rated_efficiency_kmpl} KM/L</td>
+                                                        <td className="px-5 py-3.5 text-amber-400 font-bold">{v.estimated_fuel} L</td>
+                                                        <td className="px-5 py-3.5 text-sky-400 font-bold">{v.actual_fuel > 0 ? `${v.actual_fuel} L` : "—"}</td>
+                                                        <td className="px-5 py-3.5">
+                                                            {v.actual_fuel > 0 ? (
+                                                                <span className={`font-bold ${v.fuel_variance > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                                                    {v.fuel_variance > 0 ? '+' : ''}{v.fuel_variance} L
+                                                                </span>
+                                                            ) : "—"}
+                                                        </td>
+                                                        <td className="px-5 py-3.5 text-secondary">₹{Number(v.estimated_cost).toLocaleString()}</td>
+                                                        <td className="px-5 py-3.5 font-bold text-accent">₹{Number(v.actual_cost).toLocaleString()}</td>
+                                                        <td className="px-5 py-3.5 font-bold text-emerald-400">{v.actual_kmpl > 0 ? `${v.actual_kmpl} KM/L` : "—"}</td>
+                                                        <td className="px-5 py-3.5 text-secondary">₹{v.cost_per_km}/KM</td>
+                                                        <td className="px-5 py-3.5">
+                                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${varStatus.badgeClass}`}>
+                                                                {varStatus.label}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                            {analyticsData.vehicles.length === 0 && (
+                                                <tr><td colSpan={11} className="py-8 text-center text-muted">No vehicles found.</td></tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </>
+                    )}
                 </div>
             )}
 

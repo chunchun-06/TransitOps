@@ -40,14 +40,47 @@ exports.getTrips = async (req, res) => {
     try {
         const query = `
             SELECT t.*,
-                v.registration_no, v.vehicle_name, v.fuel_efficiency_kmpl, v.fuel_type,
-                d.name AS driver_name, d.license_expiry
+                v.registration_no, v.vehicle_name, v.fuel_efficiency_kmpl, v.fuel_type, v.odometer AS vehicle_odometer,
+                d.name AS driver_name, d.license_expiry,
+                COALESCE(f_agg.total_fuel_volume, t.fuel_used, 0)::float AS actual_fuel_liters,
+                COALESCE(f_agg.total_fuel_cost, t.actual_fuel_cost, 0)::float AS actual_fuel_cost,
+                COALESCE(f_agg.fuel_bills_count, 0)::int AS fuel_bills_count
             FROM trips t
             LEFT JOIN vehicles v ON t.vehicle_id = v.id
             LEFT JOIN drivers d ON t.driver_id = d.id
+            LEFT JOIN (
+                SELECT trip_id, 
+                       SUM(fuel_amount) AS total_fuel_volume, 
+                       SUM(cost) AS total_fuel_cost, 
+                       COUNT(id) AS fuel_bills_count
+                FROM fuel 
+                WHERE trip_id IS NOT NULL 
+                GROUP BY trip_id
+            ) f_agg ON f_agg.trip_id = t.id
             ORDER BY t.created_at DESC
         `;
         const result = await pool.query(query);
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+exports.getTripFuelBills = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const query = `
+            SELECT f.*, 
+                v.registration_no, v.vehicle_name,
+                d.name AS driver_name
+            FROM fuel f
+            LEFT JOIN vehicles v ON f.vehicle_id = v.id
+            LEFT JOIN drivers d ON f.created_by = d.user_id
+            WHERE f.trip_id = $1
+            ORDER BY f.date DESC
+        `;
+        const result = await pool.query(query, [id]);
         res.json(result.rows);
     } catch (err) {
         console.error(err);

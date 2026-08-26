@@ -8,6 +8,7 @@ router.use(authenticate);
 
 router.get('/', tripController.getTrips);
 router.get('/active', tripController.getActiveTrips);
+router.get('/:id/fuel-bills', tripController.getTripFuelBills);
 router.post('/', authorize('Admin', 'Fleet Manager', 'Dispatcher'), tripController.createTrip);
 router.put('/:id', authorize('Admin', 'Fleet Manager', 'Dispatcher', 'Driver'), tripController.updateTrip);
 router.delete('/:id', authorize('Admin', 'Fleet Manager'), tripController.deleteTrip);

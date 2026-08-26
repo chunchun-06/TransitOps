@@ -8,3 +8,4 @@ export const extractFuelReceipt = (formData) => api.post("/fuel/extract", formDa
         "Content-Type": "multipart/form-data"
     }
 });
+export const getFuelAnalytics = (params) => api.get("/fuel/analytics", { params });
