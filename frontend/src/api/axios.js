@@ -1,30 +1,35 @@
 import axios from "axios";
 
 const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL,
+    baseURL: `${import.meta.env.VITE_API_URL}/api`,
     headers: {
         "Content-Type": "application/json",
     },
-    timeout: 120000, // 2 min — needed for Tesseract OCR scans
+    timeout: 120000,
 });
 
-// ── Request interceptor ─────────────────────────────────────────────────────
+// Request interceptor
 api.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken");
+        const token =
+            localStorage.getItem("accessToken") ||
+            sessionStorage.getItem("accessToken");
+
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
-        // Let the browser set Content-Type (with boundary) for multipart uploads
+
+        // Let browser set Content-Type for multipart/form-data
         if (config.data instanceof FormData) {
             delete config.headers["Content-Type"];
         }
+
         return config;
     },
     (error) => Promise.reject(error)
 );
 
-// ── Response interceptor ────────────────────────────────────────────────────
+// Response interceptor
 api.interceptors.response.use(
     (response) => response,
     (error) => {
@@ -33,8 +38,10 @@ api.interceptors.response.use(
             localStorage.removeItem("user");
             sessionStorage.removeItem("accessToken");
             sessionStorage.removeItem("user");
+
             window.dispatchEvent(new Event("auth:unauthorized"));
         }
+
         return Promise.reject(error);
     }
 );
