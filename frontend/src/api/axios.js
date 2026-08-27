@@ -1,7 +1,11 @@
 import axios from "axios";
 
+// Safely sanitize VITE_API_URL to ensure /api suffix is handled cleanly
+const rawUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const cleanUrl = rawUrl.replace(/\/+$/, "").replace(/\/api$/, "");
+
 const api = axios.create({
-    baseURL: `${import.meta.env.VITE_API_URL}/api`,
+    baseURL: `${cleanUrl}/api`,
     headers: {
         "Content-Type": "application/json",
     },
@@ -19,7 +23,7 @@ api.interceptors.request.use(
             config.headers.Authorization = `Bearer ${token}`;
         }
 
-        // Let browser set Content-Type for multipart/form-data
+        // Let browser set Content-Type with boundary for multipart/form-data
         if (config.data instanceof FormData) {
             delete config.headers["Content-Type"];
         }

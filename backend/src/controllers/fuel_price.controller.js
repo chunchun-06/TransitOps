@@ -1,3 +1,4 @@
+const pool = require('../config/db');
 const FuelPriceService = require('../services/fuel_price.service');
 
 // Get current active fuel price for a fuel type
@@ -10,6 +11,7 @@ exports.getCurrentPrice = async (req, res) => {
         const priceData = await FuelPriceService.getCurrentFuelPrice({ city, state, fuelType });
         
         res.json({
+            success: true,
             fuel_type: priceData.fuelType,
             price_per_liter: priceData.pricePerLitre,
             effective_from: priceData.effectiveDate,
@@ -20,42 +22,55 @@ exports.getCurrentPrice = async (req, res) => {
         });
     } catch (err) {
         console.error('Error in getCurrentPrice:', err);
-        res.status(500).json({ message: err.message || 'Server error' });
+        res.status(500).json({ success: false, message: err.message || 'Server error' });
     }
 };
 
 // Get all fuel price history
 exports.getPriceHistory = async (req, res) => {
-    // Keep this or adapt it for historical view if needed.
-    // We will just read from the new fuel_prices table instead of the old one.
-    const pool = require('../config/db');
     try {
         const result = await pool.query(
             `SELECT *
              FROM fuel_prices
              ORDER BY effective_date DESC, created_at DESC`
         );
-        res.json(result.rows);
+        res.json({ success: true, data: result.rows });
     } catch (err) {
         console.error('Error in getPriceHistory:', err);
-        res.status(500).json({ message: 'Server error' });
+        res.status(500).json({ success: false, message: 'Server error fetching price history' });
     }
 };
 
-// Create new fuel price entry (Fleet Manager only)
+// Create / Publish new fuel price entry (Fleet Manager & Admin allowed)
 exports.createPrice = async (req, res) => {
     const {
         fuel_type,
         price_per_liter,
-        effective_from
+        effective_from,
+        city,
+        state,
+        country
     } = req.body;
 
     try {
-        if (!fuel_type || !price_per_liter || !effective_from) {
+        if (!fuel_type || price_per_liter === undefined || price_per_liter === null || !effective_from) {
             return res.status(400).json({
-                message: "fuel_type, price_per_liter and effective_from are required"
+                success: false,
+                message: "fuel_type, price_per_liter, and effective_from are required"
             });
         }
+
+        const numericPrice = parseFloat(price_per_liter);
+        if (isNaN(numericPrice) || numericPrice <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: "price_per_liter must be a positive number"
+            });
+        }
+
+        const cityVal = city || 'Chennai';
+        const stateVal = state || 'Tamil Nadu';
+        const countryVal = country || 'India';
 
         const result = await pool.query(
             `
@@ -74,27 +89,37 @@ exports.createPrice = async (req, res) => {
             )
             VALUES (
                 $1,
-                'India',
-                'Tamil Nadu',
-                'Chennai',
                 $2,
-                'INR',
                 $3,
+                $4,
+                $5,
+                'INR',
+                $6,
                 'Manual',
                 CURRENT_TIMESTAMP,
                 CURRENT_TIMESTAMP,
                 CURRENT_TIMESTAMP
             )
+            ON CONFLICT (city, fuel_type, effective_date) 
+            DO UPDATE SET 
+                price_per_litre = EXCLUDED.price_per_litre,
+                source = 'Manual',
+                fetched_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
             RETURNING *
             `,
             [
                 fuel_type,
-                price_per_liter,
+                countryVal,
+                stateVal,
+                cityVal,
+                numericPrice,
                 effective_from
             ]
         );
 
         return res.status(201).json({
+            success: true,
             message: "Fuel price published successfully",
             data: result.rows[0]
         });
@@ -103,16 +128,18 @@ exports.createPrice = async (req, res) => {
         console.error("Error creating fuel price:", err);
 
         return res.status(500).json({
-            message: "Failed to create fuel price"
+            success: false,
+            message: err.message || "Failed to create fuel price"
         });
     }
 };
+
 // Update fuel price entry
 exports.updatePrice = async (req, res) => {
-    return res.status(400).json({ message: 'Manual price updates are disabled.' });
+    return res.status(400).json({ success: false, message: 'Manual price updates are managed via Publish Rate.' });
 };
 
 // Delete fuel price entry
 exports.deletePrice = async (req, res) => {
-    return res.status(400).json({ message: 'Manual price deletion is disabled.' });
+    return res.status(400).json({ success: false, message: 'Manual price deletion is disabled.' });
 };
