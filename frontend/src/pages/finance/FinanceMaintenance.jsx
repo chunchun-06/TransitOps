@@ -5,10 +5,33 @@ import {
     HiOutlinePrinter,
     HiOutlineChevronDown,
     HiOutlineChevronUp,
+    HiOutlinePlus,
+    HiOutlineTrash,
+    HiX,
 } from "react-icons/hi";
-import { getMaintenanceLogs } from "../../api/maintenance.api";
+import { getMaintenanceLogs, createMaintenanceLog, deleteMaintenanceLog } from "../../api/maintenance.api";
 import { getVehicles } from "../../api/vehicle.api";
-import { Select, Badge } from "../../components/common";
+import { Select, Badge, Input, Button } from "../../components/common";
+
+const SERVICE_TYPES = [
+    "Oil Change",
+    "Tire Replacement",
+    "Brake Inspection",
+    "Engine Repair",
+    "Transmission Service",
+    "General Inspection",
+    "Scheduled Service",
+    "Other"
+];
+
+const initialForm = {
+    vehicle_id: "",
+    service_type: "Oil Change",
+    description: "",
+    cost: "",
+    service_date: new Date().toISOString().split("T")[0],
+    status: "Completed",
+};
 
 const FinanceMaintenance = () => {
     const [logs, setLogs] = useState([]);
@@ -20,6 +43,12 @@ const FinanceMaintenance = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
 
+    // Modal state
+    const [showModal, setShowModal] = useState(false);
+    const [form, setForm] = useState(initialForm);
+    const [submitting, setSubmitting] = useState(false);
+    const [errorMsg, setErrorMsg] = useState("");
+
     const fetchData = async () => {
         try {
             const [logsRes, vehiclesRes] = await Promise.all([
@@ -28,6 +57,9 @@ const FinanceMaintenance = () => {
             ]);
             setLogs(logsRes.data || []);
             setVehicles(vehiclesRes.data || []);
+            if (vehiclesRes.data?.length > 0 && !form.vehicle_id) {
+                setForm(prev => ({ ...prev, vehicle_id: vehiclesRes.data[0].id }));
+            }
         } catch (err) {
             console.error("Fetch maintenance error:", err);
         }
@@ -42,6 +74,42 @@ const FinanceMaintenance = () => {
     };
 
     const getVehicleName = (id) => vehicles.find(v => v.id === id)?.registration_no || "—";
+
+    const handleFormChange = (e) => {
+        const { name, value } = e.target;
+        setForm(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleSubmitMaintenance = async (e) => {
+        e.preventDefault();
+        try {
+            setSubmitting(true);
+            setErrorMsg("");
+            const payload = {
+                ...form,
+                vehicle_id: Number(form.vehicle_id),
+                cost: Number(form.cost),
+            };
+            await createMaintenanceLog(payload);
+            setForm({ ...initialForm, vehicle_id: vehicles[0]?.id || "", service_date: new Date().toISOString().split("T")[0] });
+            setShowModal(false);
+            fetchData();
+        } catch (err) {
+            setErrorMsg(err.response?.data?.message || "Failed to save maintenance record");
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleDelete = async (id) => {
+        if (!window.confirm("Delete this maintenance record?")) return;
+        try {
+            await deleteMaintenanceLog(id);
+            fetchData();
+        } catch (err) {
+            alert(err.response?.data?.message || "Failed to delete maintenance log");
+        }
+    };
 
     const processedLogs = useMemo(() => {
         let filtered = logs.filter((l) => {
@@ -76,6 +144,11 @@ const FinanceMaintenance = () => {
         return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
     };
 
+    const vehicleOptions = vehicles.map(v => ({
+        label: `${v.registration_no} (${v.make} ${v.model})`,
+        value: v.id
+    }));
+
     const handleExportCSV = () => {
         const headers = ["Vehicle", "Service Type", "Description", "Cost", "Date", "Status"];
         const rows = processedLogs.map((l) => [
@@ -104,14 +177,6 @@ const FinanceMaintenance = () => {
 
     return (
         <div className="animate-fade-in-up space-y-6 max-w-[1600px] mx-auto text-primary">
-
-            {/* Read-Only Banner */}
-            <div className="bg-info/10 border border-info/20 rounded-xl px-4 py-3 flex items-center gap-3">
-                <span className="text-info text-xs font-bold uppercase tracking-wider">📋 View-Only Mode</span>
-                <span className="text-xs text-secondary">
-                    You are viewing maintenance records logged by the admin. No edits can be made from this view.
-                </span>
-            </div>
 
             {/* Stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -153,6 +218,12 @@ const FinanceMaintenance = () => {
                     </div>
                 </div>
                 <div className="flex gap-3">
+                    <button
+                        onClick={() => setShowModal(true)}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-white hover:bg-accent/90 text-sm font-bold shadow-md transition-all"
+                    >
+                        <HiOutlinePlus className="w-4 h-4" /> Add Service Record
+                    </button>
                     <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-card text-secondary hover:text-primary hover:bg-primary/5 text-sm font-medium transition-colors">
                         <HiOutlineDownload className="w-4 h-4" /> Export CSV
                     </button>
@@ -161,6 +232,100 @@ const FinanceMaintenance = () => {
                     </button>
                 </div>
             </div>
+
+            {/* Add Maintenance Modal */}
+            {showModal && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-card border border-border rounded-2xl p-6 shadow-2xl max-w-md w-full relative animate-fade-in-up">
+                        <div className="flex items-center justify-between mb-4 border-b border-border pb-3">
+                            <h3 className="text-base font-bold text-primary">Log Maintenance Service</h3>
+                            <button onClick={() => setShowModal(false)} className="text-muted hover:text-primary p-1 rounded-lg">
+                                <HiX className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {errorMsg && (
+                            <div className="mb-4 bg-danger/10 border border-danger/30 text-danger text-xs p-3 rounded-lg">
+                                {errorMsg}
+                            </div>
+                        )}
+
+                        <form onSubmit={handleSubmitMaintenance} className="space-y-4">
+                            <Select
+                                label="Target Vehicle"
+                                name="vehicle_id"
+                                value={form.vehicle_id}
+                                onChange={handleFormChange}
+                                options={vehicleOptions}
+                                required
+                            />
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <Select
+                                    label="Service Type"
+                                    name="service_type"
+                                    value={form.service_type}
+                                    onChange={handleFormChange}
+                                    options={SERVICE_TYPES.map(st => ({ label: st, value: st }))}
+                                    required
+                                />
+                                <Input
+                                    label="Cost (₹)"
+                                    name="cost"
+                                    type="number"
+                                    placeholder="e.g. 2500"
+                                    value={form.cost}
+                                    onChange={handleFormChange}
+                                    required
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <Input
+                                    label="Service Date"
+                                    name="service_date"
+                                    type="date"
+                                    value={form.service_date}
+                                    onChange={handleFormChange}
+                                    required
+                                />
+                                <Select
+                                    label="Status"
+                                    name="status"
+                                    value={form.status}
+                                    onChange={handleFormChange}
+                                    options={[
+                                        { label: "Completed", value: "Completed" },
+                                        { label: "In Shop", value: "In Shop" }
+                                    ]}
+                                    required
+                                />
+                            </div>
+
+                            <Input
+                                label="Description / Service Details"
+                                name="description"
+                                placeholder="e.g. Routine 10,000 KM synthetic oil change"
+                                value={form.description}
+                                onChange={handleFormChange}
+                            />
+
+                            <div className="flex justify-end gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowModal(false)}
+                                    className="px-4 py-2 text-xs font-semibold rounded-xl border border-border text-secondary hover:text-primary"
+                                >
+                                    Cancel
+                                </button>
+                                <Button type="submit" disabled={submitting || !form.vehicle_id || !form.cost}>
+                                    {submitting ? "Saving..." : "Save Record"}
+                                </Button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
 
             {/* Table */}
             <div className="bg-card border border-border rounded-2xl overflow-hidden flex flex-col shadow-sm">
@@ -184,18 +349,19 @@ const FinanceMaintenance = () => {
                                 <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider cursor-pointer hover:text-primary" onClick={() => handleSort("status")}>
                                     Status <SortIcon column="status" />
                                 </th>
+                                <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
                             {paginatedLogs.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-12 text-center text-muted text-sm">
+                                    <td colSpan={7} className="px-6 py-12 text-center text-muted text-sm">
                                         No maintenance records found.
                                     </td>
                                 </tr>
                             ) : (
                                 paginatedLogs.map((log) => (
-                                    <tr key={log.id} className="hover:bg-primary/[0.02] transition-colors">
+                                    <tr key={log.id} className="hover:bg-primary/[0.02] transition-colors group">
                                         <td className="px-6 py-4 text-sm font-semibold text-primary">{getVehicleName(log.vehicle_id)}</td>
                                         <td className="px-6 py-4 text-sm text-secondary">{log.service_type}</td>
                                         <td className="px-6 py-4 text-sm text-secondary max-w-[200px] truncate">{log.description || "—"}</td>
@@ -203,6 +369,15 @@ const FinanceMaintenance = () => {
                                         <td className="px-6 py-4 text-sm text-secondary">{formatDate(log.service_date)}</td>
                                         <td className="px-6 py-4 text-sm">
                                             <Badge status={log.status}>{log.status}</Badge>
+                                        </td>
+                                        <td className="px-6 py-4 text-sm text-right">
+                                            <button
+                                                onClick={() => handleDelete(log.id)}
+                                                className="p-1.5 text-secondary hover:text-danger hover:bg-red-400/10 rounded transition-colors opacity-0 group-hover:opacity-100"
+                                                title="Delete Maintenance Record"
+                                            >
+                                                <HiOutlineTrash className="w-4 h-4" />
+                                            </button>
                                         </td>
                                     </tr>
                                 ))
@@ -215,7 +390,7 @@ const FinanceMaintenance = () => {
                                     <td className="px-6 py-3 text-sm font-bold text-accent">
                                         {processedLogs.reduce((sum, l) => sum + Number(l.cost || 0), 0).toLocaleString()}
                                     </td>
-                                    <td colSpan={2} />
+                                    <td colSpan={3} />
                                 </tr>
                             </tfoot>
                         )}

@@ -9,9 +9,9 @@ router.use(authenticate);
 router.get('/current', fuelPriceController.getCurrentPrice);
 router.get('/history', fuelPriceController.getPriceHistory);
 
-// Admin / Fleet Manager only allowed to modify prices
-router.post('/', authorize('Fleet Manager'), fuelPriceController.createPrice);
-router.put('/:id', authorize('Fleet Manager'), fuelPriceController.updatePrice);
-router.delete('/:id', authorize('Fleet Manager'), fuelPriceController.deletePrice);
+// Admin / Fleet Manager allowed to modify base fuel prices
+router.post('/', authorize('Admin', 'Fleet Manager'), fuelPriceController.createPrice);
+router.put('/:id', authorize('Admin', 'Fleet Manager'), fuelPriceController.updatePrice);
+router.delete('/:id', authorize('Admin', 'Fleet Manager'), fuelPriceController.deletePrice);
 
 module.exports = router;

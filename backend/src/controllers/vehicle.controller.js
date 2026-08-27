@@ -36,23 +36,26 @@ exports.getVehicleById = async (req, res) => {
 
         // Fetch recent trips for this vehicle
         const tripsResult = await pool.query(
-            `SELECT t.*, d.name AS driver_name 
+            `SELECT t.id, t.created_at, t.start_time, t.end_time, t.source, t.destination,
+                    t.planned_distance, t.actual_distance, t.status, t.revenue,
+                    COALESCE((SELECT SUM(amount) FROM expenses WHERE trip_id = t.id), 0)::float AS total_expenses,
+                    d.name AS driver_name 
              FROM trips t 
              LEFT JOIN drivers d ON t.driver_id = d.id 
              WHERE t.vehicle_id = $1 
-             ORDER BY t.created_at DESC LIMIT 10`,
+             ORDER BY t.created_at DESC LIMIT 20`,
             [id]
         );
 
         // Fetch maintenance records
         const maintResult = await pool.query(
-            `SELECT * FROM maintenance WHERE vehicle_id = $1 ORDER BY created_at DESC LIMIT 10`,
+            `SELECT * FROM maintenance WHERE vehicle_id = $1 ORDER BY service_date DESC, created_at DESC LIMIT 50`,
             [id]
         );
 
         // Fetch fuel logs
         const fuelResult = await pool.query(
-            `SELECT * FROM fuel WHERE vehicle_id = $1 ORDER BY created_at DESC LIMIT 10`,
+            `SELECT * FROM fuel WHERE vehicle_id = $1 ORDER BY date DESC, created_at DESC LIMIT 50`,
             [id]
         );
 

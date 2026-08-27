@@ -5,10 +5,14 @@ import {
     HiOutlinePrinter,
     HiOutlineChevronDown,
     HiOutlineChevronUp,
+    HiOutlinePlus,
+    HiOutlineTrash,
+    HiX,
 } from "react-icons/hi";
-import { getExpenses } from "../../api/expense.api";
+import { getExpenses, createExpense, deleteExpense } from "../../api/expense.api";
 import { getVehicles } from "../../api/vehicle.api";
-import { Select } from "../../components/common";
+import { getTrips } from "../../api/trip.api";
+import { Select, Input, Button } from "../../components/common";
 
 const CATEGORIES = ["Toll", "Fine", "Parking", "Accommodation", "Meals", "Other"];
 
@@ -21,9 +25,18 @@ const categoryColors = {
     Other: "bg-gray-500/10 text-gray-400",
 };
 
+const initialForm = {
+    trip_id: "",
+    category: "Toll",
+    amount: "",
+    date: new Date().toISOString().split("T")[0],
+    description: "",
+};
+
 const FinanceExpenses = () => {
     const [expenses, setExpenses] = useState([]);
     const [vehicles, setVehicles] = useState([]);
+    const [trips, setTrips] = useState([]);
 
     const [searchTerm, setSearchTerm] = useState("");
     const [categoryFilter, setCategoryFilter] = useState("All");
@@ -31,14 +44,22 @@ const FinanceExpenses = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
 
+    // Modal state
+    const [showModal, setShowModal] = useState(false);
+    const [form, setForm] = useState(initialForm);
+    const [submitting, setSubmitting] = useState(false);
+    const [errorMsg, setErrorMsg] = useState("");
+
     const fetchData = async () => {
         try {
-            const [expRes, vehiclesRes] = await Promise.all([
+            const [expRes, vehiclesRes, tripsRes] = await Promise.all([
                 getExpenses().catch(() => ({ data: [] })),
                 getVehicles().catch(() => ({ data: [] })),
+                getTrips().catch(() => ({ data: [] })),
             ]);
             setExpenses(expRes.data || []);
             setVehicles(vehiclesRes.data || []);
+            setTrips(tripsRes.data || []);
         } catch (err) {
             console.error("Fetch expenses error:", err);
         }
@@ -53,6 +74,57 @@ const FinanceExpenses = () => {
     };
 
     const getVehicleName = (id) => vehicles.find(v => v.id === id)?.registration_no || "—";
+
+    const handleFormChange = (e) => {
+        const { name, value } = e.target;
+        setForm(prev => {
+            const updated = { ...prev, [name]: value };
+            if (name === "trip_id" && value) {
+                const selectedTrip = trips.find(t => String(t.id) === String(value));
+                if (selectedTrip) {
+                    const toll = selectedTrip.toll_amount !== null && selectedTrip.toll_amount !== undefined ? parseFloat(selectedTrip.toll_amount) : 0;
+                    if (toll > 0 && (updated.category === "Toll" || !updated.amount)) {
+                        updated.amount = toll.toString();
+                    }
+                    if (!updated.description || updated.description.startsWith("Toll charges for")) {
+                        updated.description = `Toll charges for TR-${String(selectedTrip.id).substring(0, 5).toUpperCase()} (${selectedTrip.source} → ${selectedTrip.destination})`;
+                    }
+                }
+            }
+            return updated;
+        });
+    };
+
+    const handleSubmitExpense = async (e) => {
+        e.preventDefault();
+        try {
+            setSubmitting(true);
+            setErrorMsg("");
+            const payload = {
+                ...form,
+                trip_id: form.trip_id ? form.trip_id : null,
+                amount: Number(form.amount),
+            };
+            await createExpense(payload);
+            setForm({ ...initialForm, date: new Date().toISOString().split("T")[0] });
+            setShowModal(false);
+            fetchData();
+        } catch (err) {
+            setErrorMsg(err.response?.data?.message || "Failed to save expense");
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleDelete = async (id) => {
+        if (!window.confirm("Delete this expense record?")) return;
+        try {
+            await deleteExpense(id);
+            fetchData();
+        } catch (err) {
+            alert(err.response?.data?.message || "Failed to delete expense");
+        }
+    };
 
     const processedExpenses = useMemo(() => {
         let filtered = expenses.filter((e) => {
@@ -97,6 +169,18 @@ const FinanceExpenses = () => {
         ...CATEGORIES.map(c => ({ label: c, value: c })),
     ];
 
+    const tripSelectOptions = [
+        { label: "None (General Operation)", value: "" },
+        ...trips.map(t => {
+            const isOngoing = t.status === "Dispatched" || t.status === "In Progress" || t.status === "Scheduled";
+            const tag = isOngoing ? "🟢 [ONGOING]" : t.status === "Completed" ? "🏁 [COMPLETED]" : `[${(t.status || 'TRIP').toUpperCase()}]`;
+            return {
+                label: `${tag} TR-${String(t.id).substring(0, 5).toUpperCase()} (${t.source} → ${t.destination})`,
+                value: t.id
+            };
+        })
+    ];
+
     const handleExportCSV = () => {
         const headers = ["Date", "Category", "Description", "Vehicle", "Trip ID", "Amount"];
         const rows = processedExpenses.map((e) => [
@@ -125,14 +209,6 @@ const FinanceExpenses = () => {
 
     return (
         <div className="animate-fade-in-up space-y-6 max-w-[1600px] mx-auto text-primary">
-
-            {/* Read-Only Banner */}
-            <div className="bg-info/10 border border-info/20 rounded-xl px-4 py-3 flex items-center gap-3">
-                <span className="text-info text-xs font-bold uppercase tracking-wider">📋 View-Only Mode</span>
-                <span className="text-xs text-secondary">
-                    You are viewing expense records logged by the admin. No edits can be made from this view.
-                </span>
-            </div>
 
             {/* Stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -188,6 +264,12 @@ const FinanceExpenses = () => {
                     </div>
                 </div>
                 <div className="flex gap-3">
+                    <button
+                        onClick={() => setShowModal(true)}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-white hover:bg-accent/90 text-sm font-bold shadow-md transition-all"
+                    >
+                        <HiOutlinePlus className="w-4 h-4" /> Add Expense
+                    </button>
                     <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-card text-secondary hover:text-primary hover:bg-primary/5 text-sm font-medium transition-colors">
                         <HiOutlineDownload className="w-4 h-4" /> Export CSV
                     </button>
@@ -196,6 +278,86 @@ const FinanceExpenses = () => {
                     </button>
                 </div>
             </div>
+
+            {/* Add Expense Modal */}
+            {showModal && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-card border border-border rounded-2xl p-6 shadow-2xl max-w-md w-full relative animate-fade-in-up">
+                        <div className="flex items-center justify-between mb-4 border-b border-border pb-3">
+                            <h3 className="text-base font-bold text-primary">Log Trip / Operation Expense</h3>
+                            <button onClick={() => setShowModal(false)} className="text-muted hover:text-primary p-1 rounded-lg">
+                                <HiX className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {errorMsg && (
+                            <div className="mb-4 bg-danger/10 border border-danger/30 text-danger text-xs p-3 rounded-lg">
+                                {errorMsg}
+                            </div>
+                        )}
+
+                        <form onSubmit={handleSubmitExpense} className="space-y-4">
+                            <Select
+                                label="Associated Trip (Ongoing or Completed)"
+                                name="trip_id"
+                                value={form.trip_id}
+                                onChange={handleFormChange}
+                                options={tripSelectOptions}
+                            />
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <Select
+                                    label="Category"
+                                    name="category"
+                                    value={form.category}
+                                    onChange={handleFormChange}
+                                    options={CATEGORIES.map(c => ({ label: c, value: c }))}
+                                    required
+                                />
+                                <Input
+                                    label="Amount (₹)"
+                                    name="amount"
+                                    type="number"
+                                    placeholder="e.g. 500"
+                                    value={form.amount}
+                                    onChange={handleFormChange}
+                                    required
+                                />
+                            </div>
+
+                            <Input
+                                label="Date"
+                                name="date"
+                                type="date"
+                                value={form.date}
+                                onChange={handleFormChange}
+                                required
+                            />
+
+                            <Input
+                                label="Description / Notes"
+                                name="description"
+                                placeholder="e.g. Toll charges for trip"
+                                value={form.description}
+                                onChange={handleFormChange}
+                            />
+
+                            <div className="flex justify-end gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowModal(false)}
+                                    className="px-4 py-2 text-xs font-semibold rounded-xl border border-border text-secondary hover:text-primary"
+                                >
+                                    Cancel
+                                </button>
+                                <Button type="submit" disabled={submitting || !form.amount || !form.date}>
+                                    {submitting ? "Saving..." : "Save Expense"}
+                                </Button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
 
             {/* Table */}
             <div className="bg-card border border-border rounded-2xl overflow-hidden flex flex-col shadow-sm">
@@ -215,16 +377,17 @@ const FinanceExpenses = () => {
                                 <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider cursor-pointer hover:text-primary" onClick={() => handleSort("amount")}>
                                     Amount <SortIcon column="amount" />
                                 </th>
+                                <th className="px-6 py-4 text-[11px] font-bold text-muted uppercase tracking-wider text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
                             {paginatedExpenses.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-12 text-center text-muted text-sm">No expenses found.</td>
+                                    <td colSpan={7} className="px-6 py-12 text-center text-muted text-sm">No expenses found.</td>
                                 </tr>
                             ) : (
                                 paginatedExpenses.map((exp) => (
-                                    <tr key={exp.id} className="hover:bg-primary/[0.02] transition-colors">
+                                    <tr key={exp.id} className="hover:bg-primary/[0.02] transition-colors group">
                                         <td className="px-6 py-4 text-sm text-secondary">{formatDate(exp.date)}</td>
                                         <td className="px-6 py-4 text-sm">
                                             <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md ${categoryColors[exp.category] || "bg-gray-500/10 text-gray-400"}`}>
@@ -235,6 +398,15 @@ const FinanceExpenses = () => {
                                         <td className="px-6 py-4 text-sm text-secondary">{getVehicleName(exp.vehicle_id)}</td>
                                         <td className="px-6 py-4 text-sm text-secondary">{exp.trip_id ? `TR-${String(exp.trip_id).substring(0, 5).toUpperCase()}` : "—"}</td>
                                         <td className="px-6 py-4 text-sm font-semibold text-primary">{formatCurrency(exp.amount)}</td>
+                                        <td className="px-6 py-4 text-sm text-right">
+                                            <button
+                                                onClick={() => handleDelete(exp.id)}
+                                                className="p-1.5 text-secondary hover:text-danger hover:bg-red-400/10 rounded transition-colors opacity-0 group-hover:opacity-100"
+                                                title="Delete Expense"
+                                            >
+                                                <HiOutlineTrash className="w-4 h-4" />
+                                            </button>
+                                        </td>
                                     </tr>
                                 ))
                             )}
@@ -246,6 +418,7 @@ const FinanceExpenses = () => {
                                     <td className="px-6 py-3 text-sm font-bold text-accent">
                                         {processedExpenses.reduce((s, e) => s + Number(e.amount || 0), 0).toLocaleString()}
                                     </td>
+                                    <td />
                                 </tr>
                             </tfoot>
                         )}

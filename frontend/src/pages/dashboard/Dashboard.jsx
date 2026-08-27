@@ -26,28 +26,10 @@ const Dashboard = () => {
     const [loading, setLoading] = useState(true);
 
     // ── Fuel Pricing Controller state ──────────────────────────────────────────
-    const [fuelBaseRates, setFuelBaseRates] = useState({ Diesel: 0, Petrol: 0, CNG: 0, Electric: 0 });
     const [marketRates, setMarketRates] = useState(null);
     const [marketLoading, setMarketLoading] = useState(false);
     const [marketFetchedAt, setMarketFetchedAt] = useState(null);
     const [marketFallback, setMarketFallback] = useState(false);
-    const [updatingPrice, setUpdatingPrice] = useState(false);
-    const [priceForm, setPriceForm] = useState({
-        fuel_type: "Diesel",
-        price_per_liter: "",
-        effective_from: new Date().toISOString().split("T")[0]
-    });
-    const [priceFormError, setPriceFormError] = useState("");
-
-    const fetchFuelBaseRates = async () => {
-        const types = ["Diesel", "Petrol", "CNG", "Electric"];
-        const obj = {};
-        await Promise.all(types.map(async (t) => {
-            try { const r = await getCurrentFuelPrice(t); obj[t] = r.data?.price_per_liter || 0; }
-            catch { obj[t] = 0; }
-        }));
-        setFuelBaseRates(obj);
-    };
 
     const fetchMarketRates = async () => {
         setMarketLoading(true);
@@ -58,25 +40,6 @@ const Dashboard = () => {
             setMarketFallback(res.data?.fallback || false);
         } catch (err) { console.error("Market rates fetch failed:", err); }
         finally { setMarketLoading(false); }
-    };
-
-    const handlePriceSubmit = async (e) => {
-        e.preventDefault();
-        setPriceFormError("");
-        setUpdatingPrice(true);
-        try {
-            if (!priceForm.price_per_liter || Number(priceForm.price_per_liter) <= 0)
-                throw new Error("Enter a valid price greater than zero");
-            await createFuelPrice({
-                fuel_type: priceForm.fuel_type,
-                price_per_liter: Number(priceForm.price_per_liter),
-                effective_from: priceForm.effective_from
-            });
-            await fetchFuelBaseRates();
-            setPriceForm(prev => ({ ...prev, price_per_liter: "" }));
-        } catch (err) {
-            setPriceFormError(err.message || err.response?.data?.message || "Failed to update");
-        } finally { setUpdatingPrice(false); }
     };
 
     useEffect(() => {
@@ -91,7 +54,6 @@ const Dashboard = () => {
             }
         };
         fetchDashboardStats();
-        fetchFuelBaseRates();
         fetchMarketRates();
     }, [trips, vehicles, drivers]);
 
@@ -163,165 +125,59 @@ const Dashboard = () => {
                     </button>
                 </div>
 
-                <div className="p-6 grid grid-cols-1 xl:grid-cols-5 gap-6">
+                <div className="p-6">
+                    {/* Market Rate Cards */}
+                    <div>
+                        <p className="text-[10px] font-bold text-muted uppercase tracking-widest mb-3 flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                            Today's Live Market Rate (Chennai, Tamil Nadu)
+                        </p>
 
-                    {/* LEFT (3/5): Rates Display */}
-                    <div className="xl:col-span-3 space-y-5">
+                        {marketLoading && !marketRates && (
+                            <div className="flex items-center gap-3 text-sm text-muted py-4">
+                                <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin"></div>
+                                Fetching live prices from market APIs...
+                            </div>
+                        )}
+                        {!marketRates && !marketLoading && (
+                            <div className="flex items-center gap-2 py-3 text-xs text-muted italic">
+                                <HiOutlineRefresh className="w-3.5 h-3.5" /> Click "Refresh Rates" to load live market data
+                            </div>
+                        )}
 
-                        {/* Market Rate Cards */}
-                        <div>
-                            <p className="text-[10px] font-bold text-muted uppercase tracking-widest mb-3 flex items-center gap-2">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                                Today's Live Market Rate
-                            </p>
-
-                            {marketLoading && !marketRates && (
-                                <div className="flex items-center gap-3 text-sm text-muted py-4">
-                                    <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin"></div>
-                                    Fetching live prices from market APIs...
-                                </div>
-                            )}
-                            {!marketRates && !marketLoading && (
-                                <div className="flex items-center gap-2 py-3 text-xs text-muted italic">
-                                    <HiOutlineRefresh className="w-3.5 h-3.5" /> Click "Refresh Rates" to load live market data
-                                </div>
-                            )}
-
-                            {marketRates && (
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                    {[
-                                        {key:'Diesel',  emoji:'⛽', label:'Diesel',  grad:'from-blue-900/60 to-blue-950/80',   border:'border-blue-500/25', glow:'shadow-blue-500/10',   price:'text-blue-300',  badge:'bg-blue-500/20 text-blue-300'},
-                                        {key:'Petrol',  emoji:'🔥', label:'Petrol',  grad:'from-green-900/60 to-green-950/80',  border:'border-green-500/25', glow:'shadow-green-500/10',  price:'text-green-300', badge:'bg-green-500/20 text-green-300'},
-                                        {key:'CNG',     emoji:'💨', label:'CNG',     grad:'from-violet-900/60 to-violet-950/80',border:'border-violet-500/25',glow:'shadow-violet-500/10', price:'text-violet-300',badge:'bg-violet-500/20 text-violet-300'},
-                                        {key:'Electric',emoji:'⚡', label:'Electric', grad:'from-amber-900/60 to-amber-950/80',  border:'border-amber-500/25', glow:'shadow-amber-500/10',  price:'text-amber-300', badge:'bg-amber-500/20 text-amber-300'},
-                                    ].map(({key, emoji, label, grad, border, glow, price, badge}) => {
-                                        const r = marketRates[key];
-                                        return (
-                                            <div key={key} className={`bg-gradient-to-br ${grad} ${border} border rounded-2xl p-4 flex flex-col gap-2 shadow-lg ${glow} hover:scale-[1.02] transition-transform cursor-default`}>
-                                                <div className="flex items-center justify-between">
-                                                    <span className="text-lg">{emoji}</span>
-                                                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${badge} border ${border}`}>
-                                                        {r?.live ? 'LIVE' : 'REF'}
-                                                    </span>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[10px] text-slate-400 uppercase font-semibold tracking-wider">{label}</p>
-                                                    <p className={`text-2xl font-black ${price} leading-tight`}>
-                                                        ₹{r ? parseFloat(r.price).toFixed(2) : '—'}
-                                                    </p>
-                                                    <p className="text-[9px] text-slate-500 mt-0.5">{r?.unit || 'per litre'}</p>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                            {marketFallback && (
-                                <p className="text-[10px] text-warning mt-2 flex items-center gap-1">⚠ Live fetch unavailable — showing verified reference rates</p>
-                            )}
-                        </div>
-
-                        {/* System Base Rates with delta */}
-                        <div>
-                            <p className="text-[10px] font-bold text-muted uppercase tracking-widest mb-3">System Base Rates (DB)</p>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {marketRates && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                 {[
-                                    {type:'Diesel',  color:'text-blue-400',   bg:'bg-blue-500/8',   border:'border-blue-500/15'},
-                                    {type:'Petrol',  color:'text-green-400',  bg:'bg-green-500/8',  border:'border-green-500/15'},
-                                    {type:'CNG',     color:'text-violet-400', bg:'bg-violet-500/8', border:'border-violet-500/15'},
-                                    {type:'Electric',color:'text-amber-400',  bg:'bg-amber-500/8',  border:'border-amber-500/15'},
-                                ].map(({type, color, bg, border}) => {
-                                    const base = parseFloat(fuelBaseRates[type] || 0);
-                                    const market = marketRates ? parseFloat(marketRates[type]?.price || 0) : 0;
-                                    const delta = market > 0 ? (base - market).toFixed(2) : null;
+                                    {key:'Diesel',  emoji:'⛽', label:'Diesel',  grad:'from-blue-900/60 to-blue-950/80',   border:'border-blue-500/25', glow:'shadow-blue-500/10',   price:'text-blue-300',  badge:'bg-blue-500/20 text-blue-300'},
+                                    {key:'Petrol',  emoji:'🔥', label:'Petrol',  grad:'from-green-900/60 to-green-950/80',  border:'border-green-500/25', glow:'shadow-green-500/10',  price:'text-green-300', badge:'bg-green-500/20 text-green-300'},
+                                    {key:'CNG',     emoji:'💨', label:'CNG',     grad:'from-violet-900/60 to-violet-950/80',border:'border-violet-500/25',glow:'shadow-violet-500/10', price:'text-violet-300',badge:'bg-violet-500/20 text-violet-300'},
+                                    {key:'Electric',emoji:'⚡', label:'Electric', grad:'from-amber-900/60 to-amber-950/80',  border:'border-amber-500/25', glow:'shadow-amber-500/10',  price:'text-amber-300', badge:'bg-amber-500/20 text-amber-300'},
+                                ].map(({key, emoji, label, grad, border, glow, price, badge}) => {
+                                    const r = marketRates[key];
                                     return (
-                                        <div key={type} className={`${bg} ${border} border rounded-xl p-3 flex flex-col gap-1.5`}>
-                                            <p className="text-[9px] font-bold text-muted uppercase tracking-wider">{type}</p>
-                                            <p className={`text-lg font-extrabold ${color}`}>₹{base.toFixed(2)}</p>
-                                            {delta !== null && (
-                                                <p className={`text-[9px] font-semibold flex items-center gap-0.5 ${parseFloat(delta) > 0 ? 'text-red-400' : parseFloat(delta) < 0 ? 'text-emerald-400' : 'text-muted'}`}>
-                                                    {parseFloat(delta) > 0 ? '↑' : parseFloat(delta) < 0 ? '↓' : '='} {Math.abs(parseFloat(delta)).toFixed(2)} vs market
+                                        <div key={key} className={`bg-gradient-to-br ${grad} ${border} border rounded-2xl p-5 flex flex-col gap-3 shadow-lg ${glow} hover:scale-[1.02] transition-transform cursor-default`}>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-2xl">{emoji}</span>
+                                                <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full ${badge} border ${border}`}>
+                                                    {r?.live ? 'LIVE MARKET' : 'MARKET REF'}
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <p className="text-[11px] text-slate-400 uppercase font-semibold tracking-wider">{label}</p>
+                                                <p className={`text-3xl font-black ${price} leading-tight`}>
+                                                    ₹{r ? parseFloat(r.price).toFixed(2) : '—'}
                                                 </p>
-                                            )}
+                                                <p className="text-[10px] text-slate-400 mt-1 font-medium">{r?.unit || 'per litre'}</p>
+                                            </div>
                                         </div>
                                     );
                                 })}
                             </div>
-                        </div>
-                    </div>
-
-                    {/* RIGHT (2/5): Update Panel */}
-                    <div className="xl:col-span-2 xl:border-l xl:border-border xl:pl-6 flex flex-col justify-center">
-                        {(isAdmin || isFleetManager) ? (
-                            <>
-                                <div className="mb-4">
-                                    <p className="text-[10px] font-bold text-muted uppercase tracking-widest">Update Base Rate</p>
-                                    <p className="text-[11px] text-muted mt-0.5">Changes apply to all new trip cost calculations</p>
-                                </div>
-
-                                {priceFormError && (
-                                    <div className="mb-3 bg-danger/10 border border-danger/30 text-danger text-[11px] p-3 rounded-xl flex items-start gap-2">
-                                        <span className="mt-0.5 text-sm">⚠</span> {priceFormError}
-                                    </div>
-                                )}
-
-                                <form onSubmit={handlePriceSubmit} className="space-y-3">
-                                    {/* Fuel type selector with visual indicators */}
-                                    <div>
-                                        <label className="block text-[11px] font-semibold text-secondary mb-1.5">Fuel Type</label>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            {['Diesel','Petrol','CNG','Electric'].map(ft => (
-                                                <button key={ft} type="button"
-                                                    onClick={() => setPriceForm({...priceForm, fuel_type: ft})}
-                                                    className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all ${
-                                                        priceForm.fuel_type === ft
-                                                            ? 'bg-accent text-white border-accent shadow-lg'
-                                                            : 'bg-sidebar border-border text-secondary hover:border-accent/50'
-                                                    }`}>
-                                                    {ft === 'Diesel' ? '⛽' : ft === 'Petrol' ? '🔥' : ft === 'CNG' ? '💨' : '⚡'} {ft}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-[11px] font-semibold text-secondary mb-1.5">New Rate (₹ per litre)</label>
-                                        <div className="relative">
-                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-accent">₹</span>
-                                            <input type="number" step="0.01" placeholder="0.00"
-                                                value={priceForm.price_per_liter}
-                                                onChange={e => setPriceForm({...priceForm, price_per_liter: e.target.value})} required
-                                                className="w-full bg-sidebar border border-border text-primary text-sm font-bold pl-7 pr-3 py-2.5 rounded-xl outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-all" />
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-[11px] font-semibold text-secondary mb-1.5">Effective From</label>
-                                        <input type="date"
-                                            value={priceForm.effective_from}
-                                            onChange={e => setPriceForm({...priceForm, effective_from: e.target.value})} required
-                                            className="w-full bg-sidebar border border-border text-primary text-xs px-3 py-2.5 rounded-xl outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-all" />
-                                    </div>
-
-                                    <button type="submit" disabled={updatingPrice}
-                                        className="w-full flex items-center justify-center gap-2 text-sm font-bold py-3 rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed text-white shadow-lg"
-                                        style={{background: updatingPrice ? undefined : 'linear-gradient(135deg, #C98A1C, #E0A422)'}}>
-                                        <HiOutlinePlus className={`w-4 h-4 ${updatingPrice ? 'animate-spin' : ''}`} />
-                                        {updatingPrice ? 'Publishing...' : 'Publish Rate'}
-                                    </button>
-                                </form>
-                            </>
-                        ) : (
-                            <div className="text-center py-6">
-                                <div className="w-12 h-12 rounded-full bg-sidebar border border-border flex items-center justify-center mx-auto mb-3">
-                                    <HiOutlineBeaker className="w-5 h-5 text-muted" />
-                                </div>
-                                <p className="text-xs text-muted">Rate updates restricted to</p>
-                                <p className="text-xs font-semibold text-secondary mt-0.5">Admin &amp; Fleet Manager</p>
-                            </div>
+                        )}
+                        {marketFallback && (
+                            <p className="text-[11px] text-warning mt-3 flex items-center gap-1.5 font-medium">⚠ Live fetch unavailable — showing verified reference rates</p>
                         )}
                     </div>
-
                 </div>
             </div>
 
@@ -333,11 +189,7 @@ const Dashboard = () => {
                 <h3 className="text-xs font-bold uppercase tracking-wider text-secondary flex items-center gap-1">
                     <HiOutlineTruck className="w-4 h-4 text-accent" /> Fleet Operations Overview
                 </h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-card border-l-4 border-l-[#3B82F6] border-y border-r border-border rounded-xl p-4 flex flex-col justify-between shadow-sm">
-                        <span className="text-[10px] text-secondary uppercase tracking-wider font-semibold">Active Vehicles</span>
-                        <span className="text-2xl font-bold mt-2">{activeVehiclesCount}</span>
-                    </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="bg-card border-l-4 border-l-[#10B981] border-y border-r border-border rounded-xl p-4 flex flex-col justify-between shadow-sm">
                         <span className="text-[10px] text-secondary uppercase tracking-wider font-semibold">Available Vehicles</span>
                         <span className="text-2xl font-bold mt-2">{availableVehiclesCount}</span>

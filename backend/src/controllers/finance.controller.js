@@ -255,10 +255,12 @@ function parseReceiptText(text) {
         return isNaN(parsed) ? null : parsed;
     };
 
+    // 1. Fuel Type
     const productRegexes = [
-        /PRODUCT\s*:\s*([a-z0-9]+)/i,
-        /FUEL\s*TYPE\s*:\s*([a-z0-9]+)/i,
-        /PRODUCT\s+([a-z0-9]+)/i,
+        /PRODUCT\s*:\s*([a-z0-9\s]+)/i,
+        /FUEL\s*TYPE\s*:\s*([a-z0-9\s]+)/i,
+        /PRODUCT\s+([a-z0-9\s]+)/i,
+        /ITEM\s*:\s*([a-z0-9\s]+)/i,
     ];
     for (const r of productRegexes) {
         const m = text.match(r);
@@ -269,9 +271,9 @@ function parseReceiptText(text) {
     }
     if (fuelType) {
         const ftLower = fuelType.toLowerCase();
-        if (ftLower.includes('diesel') || ftLower === 'hsd' || ftLower === 'h.s.d') {
+        if (ftLower.includes('diesel') || ftLower.includes('hsd') || ftLower.includes('h.s.d')) {
             fuelType = 'Diesel';
-        } else if (ftLower.includes('petrol') || ftLower === 'ms' || ftLower === 'm.s' || ftLower.includes('gasoline')) {
+        } else if (ftLower.includes('petrol') || ftLower.includes('ms') || ftLower.includes('m.s') || ftLower.includes('gasoline') || ftLower.includes('speed') || ftLower.includes('power')) {
             fuelType = 'Petrol';
         } else if (ftLower.includes('cng')) {
             fuelType = 'CNG';
@@ -282,9 +284,9 @@ function parseReceiptText(text) {
         }
     }
     if (!fuelType) {
-        if (/\bdiesel\b/i.test(text) || /\bhsd\b/i.test(text)) {
+        if (/\b(diesel|hsd|h\.s\.d)\b/i.test(text)) {
             fuelType = 'Diesel';
-        } else if (/\bpetrol\b/i.test(text) || /\bms\b/i.test(text) || /\bgasoline\b/i.test(text)) {
+        } else if (/\b(petrol|ms|m\.s|gasoline|speed|power)\b/i.test(text)) {
             fuelType = 'Petrol';
         } else if (/\bcng\b/i.test(text)) {
             fuelType = 'CNG';
@@ -293,53 +295,79 @@ function parseReceiptText(text) {
         }
     }
 
+    // 2. Price per Litre / Rate
     const rateRegexes = [
         /RATE\s*[\/\s]?\s*LTR\s*:\s*([₹\s]*\d+(?:\.\d+)?)/i,
         /RATE\s*[\/\s]?\s*LTR\s+([₹\s]*\d+(?:\.\d+)?)/i,
-        /RATE\s*:\s*([₹\s]*\d+(?:\.\d+)?)\s*\/L/i,
+        /RATE\s*:\s*([₹\s]*\d+(?:\.\d+)?)/i,
         /PRICE\s*[\/\s]?\s*LTR\s*:\s*([₹\s]*\d+(?:\.\d+)?)/i,
         /UNIT\s*PRICE\s*:\s*([₹\s]*\d+(?:\.\d+)?)/i,
+        /PER\s*LTR\s*:\s*([₹\s]*\d+(?:\.\d+)?)/i,
+        /@\s*([₹\s]*\d+(?:\.\d+)?)/i,
     ];
     for (const r of rateRegexes) {
         const m = text.match(r);
         if (m) {
             pricePerLitre = cleanNumber(m[1]);
-            break;
+            if (pricePerLitre) break;
         }
     }
 
+    // 3. Amount
     const amountRegexes = [
-        /AMOUNT\s*:\s*([₹\s]*\d+(?:\.\d+)?)/i,
-        /AMOUNT\s+([₹\s]*\d+(?:\.\d+)?)/i,
         /TOTAL\s*AMOUNT\s*:\s*([₹\s]*\d+(?:\.\d+)?)/i,
         /NET\s*AMOUNT\s*:\s*([₹\s]*\d+(?:\.\d+)?)/i,
+        /GRAND\s*TOTAL\s*:\s*([₹\s]*\d+(?:\.\d+)?)/i,
+        /AMOUNT\s*:\s*([₹\s]*\d+(?:\.\d+)?)/i,
+        /AMOUNT\s+([₹\s]*\d+(?:\.\d+)?)/i,
+        /TOTAL\s*:\s*([₹\s]*\d+(?:\.\d+)?)/i,
+        /(?:₹|Rs\.?|INR)\s*(\d+(?:\.\d+)?)/i,
     ];
     for (const r of amountRegexes) {
         const m = text.match(r);
         if (m) {
             amount = cleanNumber(m[1]);
-            break;
+            if (amount) break;
         }
     }
 
+    // 4. Volume / Quantity
     const volumeRegexes = [
         /VOLUME\s*(?:\(\s*LTR\s*\)|\(\s*LT\s*\))?\s*:\s*(\d+(?:\.\d+)?)/i,
         /VOLUME\s*(?:\(\s*LTR\s*\)|\(\s*LT\s*\))?\s+(\d+(?:\.\d+)?)/i,
         /QTY\s*:\s*(\d+(?:\.\d+)?)/i,
         /QUANTITY\s*:\s*(\d+(?:\.\d+)?)/i,
+        /LITRES?\s*:\s*(\d+(?:\.\d+)?)/i,
+        /LTR\s*:\s*(\d+(?:\.\d+)?)/i,
+        /(\d+(?:\.\d+)?)\s*(?:LTR|LITRES|LITERS|L)\b/i,
     ];
     for (const r of volumeRegexes) {
         const m = text.match(r);
         if (m) {
             volume = cleanNumber(m[1]);
-            break;
+            if (volume) break;
         }
     }
 
+    // Mathematical Cross-Derivation
+    if (!amount && volume && pricePerLitre) {
+        amount = parseFloat((volume * pricePerLitre).toFixed(2));
+    }
+    if (!volume && amount && pricePerLitre && pricePerLitre > 0) {
+        volume = parseFloat((amount / pricePerLitre).toFixed(2));
+    }
+    if (!pricePerLitre && amount && volume && volume > 0) {
+        pricePerLitre = parseFloat((amount / volume).toFixed(2));
+    }
+
+    // 5. Vehicle Number
     const vehicleRegexes = [
         /VEH\s*NO\s*:\s*([a-z0-9\-\s]+)/i,
         /VEHICLE\s*NO\s*:\s*([a-z0-9\-\s]+)/i,
+        /REG\s*NO\s*:\s*([a-z0-9\-\s]+)/i,
         /VEH\s+NO\s+([a-z0-9\-\s]+)/i,
+        /VEHICLE\s+([a-z0-9\-\s]+)/i,
+        /\b([A-Z]{2}[-\s]?[0-9]{1,2}[-\s]?[A-Z]{1,3}[-\s]?[0-9]{4})\b/i,
     ];
     for (const r of vehicleRegexes) {
         const m = text.match(r);
@@ -352,11 +380,15 @@ function parseReceiptText(text) {
         }
     }
 
+    // 6. Invoice / Receipt Number
     const receiptRegexes = [
         /Receipt\s*No\.?\s*:\s*([A-Z0-9\-]+)/i,
         /INVOICE\s*NO\.?\s*:\s*([A-Z0-9\-]+)/i,
         /BILL\s*NO\.?\s*:\s*([A-Z0-9\-]+)/i,
+        /INV\s*NO\.?\s*:\s*([A-Z0-9\-]+)/i,
         /RECEIPT\s*:\s*([A-Z0-9\-]+)/i,
+        /SL\.?\s*NO\.?\s*:\s*([A-Z0-9\-]+)/i,
+        /TXN\s*ID\s*:\s*([A-Z0-9\-]+)/i,
     ];
     for (const r of receiptRegexes) {
         const m = text.match(r);
@@ -366,9 +398,12 @@ function parseReceiptText(text) {
         }
     }
 
+    // 7. Date
     const dateRegexes = [
         /DATE\s*:\s*([a-z0-9\-\/\.\s]+)/i,
         /DATE\s+([a-z0-9\-\/\.\s]+)/i,
+        /\b(\d{1,2}[-\/\.]\d{1,2}[-\/\.]\d{2,4})\b/,
+        /\b(\d{4}[-\/\.]\d{1,2}[-\/\.]\d{1,2})\b/,
     ];
     let rawDate = null;
     for (const r of dateRegexes) {
@@ -383,9 +418,11 @@ function parseReceiptText(text) {
         billDate = parseAndNormalizeDate(datePart);
     }
 
+    // 8. Time
     const timeRegexes = [
         /TIME\s*:\s*([0-9]{2}:[0-9]{2}(?::[0-9]{2})?)/i,
         /TIME\s+([0-9]{2}:[0-9]{2}(?::[0-9]{2})?)/i,
+        /\b([0-9]{2}:[0-9]{2}:[0-9]{2})\b/,
     ];
     for (const r of timeRegexes) {
         const m = text.match(r);
@@ -395,9 +432,11 @@ function parseReceiptText(text) {
         }
     }
 
+    // 9. Payment Mode
     const modeRegexes = [
         /MODE\s*:\s*([a-z]+)/i,
         /PAYMENT\s*MODE\s*:\s*([a-z]+)/i,
+        /\b(cash|card|upi|paytm|fuelcard|online|credit|fleetcard)\b/i,
     ];
     for (const r of modeRegexes) {
         const m = text.match(r);
@@ -623,39 +662,64 @@ exports.createExpense = async (req, res) => {
     const { vehicle_id, trip_id, amount, category, date, description } = req.body;
     try {
         let resolvedVehicleId = vehicle_id || null;
+        let resolvedTripId = trip_id || null;
         let resolvedAmount = amount ? parseFloat(amount) : null;
         let resolvedDescription = description || '';
 
-        if (trip_id) {
-            const tripResult = await pool.query("SELECT vehicle_id, toll_amount, source, destination FROM trips WHERE id = $1", [trip_id]);
-            if (tripResult.rows.length > 0) {
-                const t = tripResult.rows[0];
-                if (!resolvedVehicleId) resolvedVehicleId = t.vehicle_id;
-                
-                // If amount is not provided or 0, fallback to trip's recorded toll_amount
-                if ((!resolvedAmount || isNaN(resolvedAmount) || resolvedAmount <= 0) && t.toll_amount && parseFloat(t.toll_amount) > 0) {
-                    resolvedAmount = parseFloat(t.toll_amount);
-                }
+        if (resolvedTripId) {
+            const tripResult = await pool.query("SELECT vehicle_id, toll_amount, source, destination FROM trips WHERE id = $1", [resolvedTripId]);
+            if (tripResult.rows.length === 0) {
+                return res.status(400).json({ message: 'Selected trip does not exist.' });
+            }
+            const t = tripResult.rows[0];
+            if (!resolvedVehicleId) resolvedVehicleId = t.vehicle_id;
+            
+            // If amount is not provided or 0, fallback to trip's recorded toll_amount
+            if ((!resolvedAmount || isNaN(resolvedAmount) || resolvedAmount <= 0) && t.toll_amount && parseFloat(t.toll_amount) > 0) {
+                resolvedAmount = parseFloat(t.toll_amount);
+            }
 
-                if (!resolvedDescription && category && category.toUpperCase() === 'TOLL') {
-                    resolvedDescription = `Toll charges for TR-${String(trip_id).substring(0, 5).toUpperCase()} (${t.source} → ${t.destination})`;
-                }
+            if (!resolvedDescription && category && category.toUpperCase() === 'TOLL') {
+                resolvedDescription = `Toll charges for TR-${String(resolvedTripId).substring(0, 5).toUpperCase()} (${t.source} → ${t.destination})`;
+            }
+        }
+
+        if (resolvedVehicleId) {
+            const vehCheck = await pool.query("SELECT id FROM vehicles WHERE id = $1", [resolvedVehicleId]);
+            if (vehCheck.rows.length === 0) {
+                return res.status(400).json({ message: 'Selected vehicle does not exist.' });
             }
         }
 
         if (!resolvedAmount || isNaN(resolvedAmount) || resolvedAmount <= 0) {
-            return res.status(400).json({ message: 'Valid expense amount is required.' });
+            return res.status(400).json({ message: 'Valid positive expense amount is required.' });
         }
+
+        let createdBy = null;
+        if (req.user?.id) {
+            try {
+                const uRes = await pool.query('SELECT id FROM users WHERE id = $1', [req.user.id]);
+                if (uRes.rows.length > 0) createdBy = req.user.id;
+            } catch (uErr) {}
+        }
+
+        let expDate = new Date();
+        if (date) {
+            const parsed = new Date(date);
+            if (!isNaN(parsed.getTime())) expDate = parsed;
+        }
+
+        const normCategory = (category || 'OTHER').toUpperCase();
 
         const result = await pool.query(
             `INSERT INTO expenses (vehicle_id, trip_id, amount, category, date, description, created_by) 
              VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-            [resolvedVehicleId, trip_id || null, resolvedAmount, category || 'Toll', date || new Date(), resolvedDescription, req.user?.id || null]
+            [resolvedVehicleId, resolvedTripId, resolvedAmount, normCategory, expDate, resolvedDescription, createdBy]
         );
         res.status(201).json(result.rows[0]);
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: 'Server error' });
+        console.error('Error in createExpense:', err);
+        res.status(500).json({ message: err.message || 'Server error creating expense' });
     }
 };
 

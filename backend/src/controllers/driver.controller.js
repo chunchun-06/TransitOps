@@ -79,11 +79,14 @@ exports.getDriverById = async (req, res) => {
 
         // Fetch recent trips for this driver
         const tripsResult = await pool.query(
-            `SELECT t.*, v.registration_no, v.vehicle_name 
+            `SELECT t.id, t.created_at, t.start_time, t.end_time, t.source, t.destination,
+                    t.planned_distance, t.actual_distance, t.status, t.revenue,
+                    COALESCE((SELECT SUM(amount) FROM expenses WHERE trip_id = t.id), 0)::float AS total_expenses,
+                    v.registration_no, v.vehicle_name 
              FROM trips t 
              LEFT JOIN vehicles v ON t.vehicle_id = v.id 
              WHERE t.driver_id = $1 
-             ORDER BY t.created_at DESC LIMIT 10`,
+             ORDER BY t.created_at DESC LIMIT 20`,
             [id]
         );
 

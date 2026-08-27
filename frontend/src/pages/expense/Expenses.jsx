@@ -108,7 +108,14 @@ const Expenses = () => {
 
     const tripOptions = [
         { label: "None (General Operation)", value: "" },
-        ...trips.map(t => ({ label: `TR-${String(t.id).substring(0,5).toUpperCase()} - ${t.source} to ${t.destination}`, value: t.id }))
+        ...trips.map(t => {
+            const isOngoing = t.status === "Dispatched" || t.status === "In Progress" || t.status === "Scheduled";
+            const statusTag = isOngoing ? "🟢 [ONGOING]" : t.status === "Completed" ? "🏁 [COMPLETED]" : `[${(t.status || 'TRIP').toUpperCase()}]`;
+            return {
+                label: `${statusTag} TR-${String(t.id).substring(0, 5).toUpperCase()} (${t.source} → ${t.destination})`,
+                value: t.id
+            };
+        })
     ];
 
     const categoryOptions = CATEGORIES.map(c => ({ label: c, value: c }));

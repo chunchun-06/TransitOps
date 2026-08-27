@@ -67,57 +67,129 @@ const fetchLiveRates = () => new Promise((resolve, reject) => {
     req.end();
 });
 
+const pool = require('../config/db');
+
 /**
- * GET /api/fuel-price/market-rates
- * Returns today's live market rates for Diesel, Petrol, CNG, Electric.
- * Caches for 12 hours. Falls back to verified reference rates on any error.
+ * GET /api/market-fuel/rates (or /api/fuel-price/market-rates)
+ * Returns today's live market rates for Diesel, Petrol, CNG, Electric for Chennai.
+ * Caches in fuel_prices table. Falls back to latest cached values with is_stale: true if live fetch fails.
  */
+const FuelPriceProvider = require('../providers/fuel_price.provider');
+
 exports.getMarketRates = async (req, res) => {
     const now = Date.now();
 
-    // Return from cache if still valid
+    // Check 12-hour in-memory cache first
     if (rateCache && (now - cacheTimestamp) < CACHE_TTL_MS) {
         return res.json({
             success: true,
             cached: true,
+            is_stale: false,
             fetched_at: new Date(cacheTimestamp).toISOString(),
             rates: rateCache
         });
     }
 
     try {
-        const { petrol, diesel } = await fetchLiveRates();
+        const rates = await FuelPriceProvider.fetchAllRates('Chennai', 'Tamil Nadu');
 
-        rateCache = {
-            Diesel:   { price: diesel,  unit: 'per litre', source: 'Live (Chennai, Goodreturns)', live: true },
-            Petrol:   { price: petrol,  unit: 'per litre', source: 'Live (Chennai, Goodreturns)', live: true },
-            CNG:      { price: FALLBACK_RATES.CNG.price,      unit: 'per kg',  source: FALLBACK_RATES.CNG.source,      live: false },
-            Electric: { price: FALLBACK_RATES.Electric.price, unit: 'per kWh', source: FALLBACK_RATES.Electric.source, live: false },
-        };
+        // Live/Provider fetch succeeded -> Upsert into fuel_prices table
+        const today = new Date().toISOString().split('T')[0];
+        
+        try {
+            await pool.query(
+                `INSERT INTO fuel_prices (fuel_type, country, state, city, price_per_litre, effective_date, source, fetched_at)
+                 VALUES ('DIESEL', 'India', 'Tamil Nadu', 'Chennai', $1, $5, $6, CURRENT_TIMESTAMP),
+                        ('PETROL', 'India', 'Tamil Nadu', 'Chennai', $2, $5, $7, CURRENT_TIMESTAMP),
+                        ('CNG', 'India', 'Tamil Nadu', 'Chennai', $3, $5, $8, CURRENT_TIMESTAMP),
+                        ('ELECTRIC', 'India', 'Tamil Nadu', 'Chennai', $4, $5, $9, CURRENT_TIMESTAMP)
+                 ON CONFLICT (city, fuel_type, effective_date) DO UPDATE 
+                 SET price_per_litre = EXCLUDED.price_per_litre, fetched_at = CURRENT_TIMESTAMP, source = EXCLUDED.source`,
+                [
+                    rates.Diesel.price,
+                    rates.Petrol.price,
+                    rates.CNG.price,
+                    rates.Electric.price,
+                    today,
+                    rates.Diesel.source,
+                    rates.Petrol.source,
+                    rates.CNG.source,
+                    rates.Electric.source
+                ]
+            );
+        } catch (dbErr) {
+            console.warn('[MarketFuel] Error caching rates to DB:', dbErr.message);
+        }
+
+        rateCache = rates;
         cacheTimestamp = now;
 
-        console.log(`[MarketFuel] Live rates fetched: Diesel=₹${diesel} Petrol=₹${petrol}`);
+        console.log(`[MarketFuel] Chennai rates updated: Diesel=₹${rates.Diesel.price} Petrol=₹${rates.Petrol.price} CNG=₹${rates.CNG.price} Electric=₹${rates.Electric.price}`);
         return res.json({
             success: true,
             cached: false,
+            is_stale: false,
             fetched_at: new Date(now).toISOString(),
             rates: rateCache
         });
 
     } catch (err) {
-        console.warn('[MarketFuel] Live fetch failed, using fallback:', err.message);
+        console.warn('[MarketFuel] Live fetch failed, reading latest cached values from fuel_prices DB:', err.message);
 
-        // Use fallback but don't write to rateCache (try fresh next time)
+        try {
+            // Read latest cached prices from DB table `fuel_prices`
+            const dbRes = await pool.query(
+                `SELECT DISTINCT ON (UPPER(fuel_type)) fuel_type, price_per_litre, source, fetched_at
+                 FROM fuel_prices
+                 WHERE LOWER(city) = 'chennai'
+                 ORDER BY UPPER(fuel_type), effective_date DESC, fetched_at DESC`
+            );
+
+            if (dbRes.rows.length > 0) {
+                const dbRates = { ...FALLBACK_RATES };
+                let latestFetchedAt = null;
+
+                dbRes.rows.forEach(row => {
+                    const ft = row.fuel_type.toUpperCase();
+                    const key = ft === 'DIESEL' ? 'Diesel' : ft === 'PETROL' ? 'Petrol' : ft === 'CNG' ? 'CNG' : 'Electric';
+                    if (dbRates[key]) {
+                        dbRates[key] = {
+                            price: parseFloat(row.price_per_litre),
+                            unit: dbRates[key].unit,
+                            source: row.source || 'Cached DB Reference',
+                            live: false,
+                            is_stale: true,
+                            fetched_at: row.fetched_at
+                        };
+                        if (!latestFetchedAt || new Date(row.fetched_at) > new Date(latestFetchedAt)) {
+                            latestFetchedAt = row.fetched_at;
+                        }
+                    }
+                });
+
+                return res.json({
+                    success: true,
+                    cached: true,
+                    is_stale: true,
+                    fetched_at: latestFetchedAt || new Date().toISOString(),
+                    rates: dbRates
+                });
+            }
+        } catch (dbReadErr) {
+            console.error('[MarketFuel] DB fallback read error:', dbReadErr.message);
+        }
+
+        // Final fallback to verified reference rates
         return res.json({
             success: true,
             cached: false,
-            fallback: true,
-            fetched_at: new Date(now).toISOString(),
+            is_stale: true,
+            fetched_at: new Date().toISOString(),
             rates: {
-                Diesel:   { ...FALLBACK_RATES.Diesel,   live: false },
-                Petrol:   { ...FALLBACK_RATES.Petrol,   live: false },
-                CNG:      { ...FALLBACK_RATES.CNG,      live: false },
-                Electric: { ...FALLBACK_RATES.Electric, live: false },
+                Diesel:   { ...FALLBACK_RATES.Diesel,   live: false, is_stale: true },
+                Petrol:   { ...FALLBACK_RATES.Petrol,   live: false, is_stale: true },
+                CNG:      { ...FALLBACK_RATES.CNG,      live: false, is_stale: true },
+                Electric: { ...FALLBACK_RATES.Electric, live: false, is_stale: true },
             }
         });
     }

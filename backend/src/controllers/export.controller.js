@@ -20,7 +20,8 @@ exports.exportCSV = async (req, res) => {
         const tripsRes = await pool.query(`
             SELECT 
                 t.id, t.created_at, t.source, t.destination, t.status,
-                t.revenue, t.actual_fuel_cost, t.toll_amount,
+                t.revenue, t.actual_fuel_cost,
+                COALESCE((SELECT SUM(amount) FROM expenses WHERE trip_id = t.id AND UPPER(category) = 'TOLL'), t.toll_amount, 0) AS toll_amount,
                 v.registration_no, d.name AS driver_name
             FROM trips t
             LEFT JOIN vehicles v ON t.vehicle_id = v.id

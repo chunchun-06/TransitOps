@@ -102,12 +102,11 @@ class FinancialAnalyticsService {
             SELECT 
                 COUNT(*)::int AS total_trips,
                 COUNT(*) FILTER (WHERE status = 'Completed')::int AS completed_trips,
-                COUNT(*) FILTER (WHERE status = 'Dispatched')::int AS active_trips,
+                COUNT(*) FILTER (WHERE status IN ('Dispatched', 'In Progress'))::int AS active_trips,
                 COUNT(*) FILTER (WHERE status = 'Draft')::int AS draft_trips,
                 COUNT(*) FILTER (WHERE status = 'Cancelled')::int AS cancelled_trips,
                 COALESCE(SUM(revenue) FILTER (WHERE status = 'Completed'), 0)::float AS total_revenue,
-                COALESCE(SUM(COALESCE(actual_distance, planned_distance, 0)) FILTER (WHERE status = 'Completed'), 0)::float AS total_distance,
-                COALESCE(SUM(toll_amount) FILTER (WHERE status = 'Completed'), 0)::float AS trip_toll_amount
+                COALESCE(SUM(COALESCE(actual_distance, planned_distance, 0)) FILTER (WHERE status = 'Completed'), 0)::float AS total_distance
             FROM trips
             ${tripFilters.clause}
         `, tripFilters.params);

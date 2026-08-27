@@ -35,6 +35,10 @@ api.interceptors.response.use(
             sessionStorage.removeItem("user");
             window.dispatchEvent(new Event("auth:unauthorized"));
         }
+        const backendMsg = error.response?.data?.message || error.response?.data?.error;
+        if (backendMsg && typeof backendMsg === 'string') {
+            error.message = backendMsg;
+        }
         return Promise.reject(error);
     }
 );

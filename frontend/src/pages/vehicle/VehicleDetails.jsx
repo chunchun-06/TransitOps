@@ -425,7 +425,7 @@ const VehicleDetails = () => {
                                 <tbody className="divide-y divide-border text-sm">
                                     {vehicle.fuel_logs?.map(f => (
                                         <tr key={f.id} className="hover:bg-primary/[0.02]">
-                                            <td className="py-3 px-4 font-medium text-primary">{f.fuel_quantity || f.liters} L</td>
+                                            <td className="py-3 px-4 font-medium text-primary">{f.fuel_amount || f.fuel_quantity || f.liters || 0} L</td>
                                             <td className="py-3 px-4 text-secondary">₹{f.price_per_liter || "—"}</td>
                                             <td className="py-3 px-4 text-emerald-400 font-semibold">₹{Number(f.cost || f.total_cost || 0).toLocaleString()}</td>
                                             <td className="py-3 px-4 text-secondary">{new Date(f.created_at || f.fuel_date).toLocaleDateString()}</td>
