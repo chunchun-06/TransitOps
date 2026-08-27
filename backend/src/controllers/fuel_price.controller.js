@@ -1,8 +1,8 @@
+const pool = require('../config/db');
 const FuelPriceService = require('../services/fuel_price.service');
 
 // Get current active fuel price for a fuel type (from Today's Live Market Rate)
 exports.getCurrentPrice = async (req, res) => {
-    const pool = require('../config/db');
     try {
         const fuelType = req.query.fuel_type || 'Diesel';
         
@@ -57,27 +57,25 @@ exports.getCurrentPrice = async (req, res) => {
         });
     } catch (err) {
         console.error('Error in getCurrentPrice:', err);
-        res.status(500).json({ message: err.message || 'Server error' });
+        res.status(500).json({ success: false, message: err.message || 'Server error' });
     }
 };
 
 // Get all fuel price history (System Base Rates)
 exports.getPriceHistory = async (req, res) => {
-    const pool = require('../config/db');
     try {
         const result = await pool.query(
             `SELECT * FROM fuel_price ORDER BY effective_from DESC, created_at DESC`
         );
-        res.json(result.rows);
+        res.json({ success: true, data: result.rows });
     } catch (err) {
         console.error('Error in getPriceHistory:', err);
-        res.status(500).json({ message: 'Server error' });
+        res.status(500).json({ success: false, message: 'Server error fetching price history' });
     }
 };
 
 // Create new system base fuel price entry (Fleet Manager / Admin)
 exports.createPrice = async (req, res) => {
-    const pool = require('../config/db');
     try {
         const { fuel_type, price_per_liter, price_per_litre, effective_from, effective_date, notes } = req.body;
 
@@ -142,7 +140,6 @@ exports.createPrice = async (req, res) => {
 
 // Update system base fuel price entry
 exports.updatePrice = async (req, res) => {
-    const pool = require('../config/db');
     try {
         const { id } = req.params;
         const { price_per_liter, price_per_litre, notes } = req.body;
@@ -177,7 +174,6 @@ exports.updatePrice = async (req, res) => {
 
 // Delete fuel price entry
 exports.deletePrice = async (req, res) => {
-    const pool = require('../config/db');
     try {
         const { id } = req.params;
         const result = await pool.query('DELETE FROM fuel_price WHERE id = $1 RETURNING *', [id]);

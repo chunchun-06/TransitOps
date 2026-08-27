@@ -1,10 +1,11 @@
 const multer = require('multer');
 
-// Configure memory storage for Cloudinary / Base64 upload processing
+// Memory storage for file uploads
 const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
+    const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (allowedMimeTypes.includes(file.mimetype.toLowerCase())) {
         cb(null, true);
     } else {
         cb(new Error('Only image files (jpg, jpeg, png, webp) are allowed!'), false);
